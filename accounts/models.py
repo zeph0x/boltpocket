@@ -682,23 +682,36 @@ class RecurringPayment(models.Model):
     description = models.CharField(max_length=255, blank=True, default='')
 
     def compute_next_payment(self):
-        """Calculate the next payment datetime based on frequency."""
+        """Calculate the next payment datetime based on frequency.
+        Advances past now — skips missed intervals instead of catching up."""
         import datetime
         now = datetime.datetime.now(datetime.timezone.utc)
         base = self.next_payment or now
+
         if self.frequency == self.Frequency.DAILY:
-            return base + datetime.timedelta(days=1)
+            delta = datetime.timedelta(days=1)
         elif self.frequency == self.Frequency.WEEKLY:
-            return base + datetime.timedelta(weeks=1)
+            delta = datetime.timedelta(weeks=1)
         elif self.frequency == self.Frequency.BIWEEKLY:
-            return base + datetime.timedelta(weeks=2)
+            delta = datetime.timedelta(weeks=2)
         elif self.frequency == self.Frequency.MONTHLY:
-            # Advance by ~30 days, land on same day of month
-            month = base.month % 12 + 1
-            year = base.year + (1 if month == 1 else 0)
-            day = min(base.day, 28)  # safe for all months
-            return base.replace(year=year, month=month, day=day)
-        return base + datetime.timedelta(days=1)
+            # Advance month by month until past now
+            nxt = base
+            while nxt <= now:
+                month = nxt.month % 12 + 1
+                year = nxt.year + (1 if month == 1 else 0)
+                day = min(nxt.day, 28)
+                nxt = nxt.replace(year=year, month=month, day=day)
+            return nxt
+        else:
+            delta = datetime.timedelta(days=1)
+
+        # Advance past now in one step
+        nxt = base + delta
+        if nxt <= now:
+            missed = int((now - base) / delta)
+            nxt = base + delta * (missed + 1)
+        return nxt
 
     @property
     def is_fiat(self):
