@@ -1,6 +1,6 @@
 # ⚡ BoltPocket
 
-Self-hosted Bitcoin wallet with NFC card payments. Tap your card to pay at any Lightning merchant.
+Self-hosted Bitcoin wallet with NFC card payments. Tap your card to pay at any boltcard supporting merchant.
 
 ## Features
 
