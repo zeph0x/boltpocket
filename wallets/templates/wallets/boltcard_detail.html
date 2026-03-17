@@ -1,0 +1,75 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <title>{{ card.uid }} — BoltPocket</title>
+    <style>
+        body { font-family: -apple-system, sans-serif; max-width: 600px; margin: 0 auto; padding: 1em; background: #1a1a2e; color: #eee; }
+        h1, h2 { color: #f7931a; }
+        a { color: #f7931a; }
+        .info { background: #16213e; padding: 1em; border-radius: 8px; margin: 1em 0; }
+        .info dt { font-weight: bold; color: #888; margin-top: 0.8em; }
+        .info dd { margin: 0.2em 0 0 0; }
+        .status { padding: 2px 8px; border-radius: 4px; font-size: 0.9em; }
+        .enabled { background: #2d6a4f; }
+        .disabled { background: #6b2c2c; }
+        table { width: 100%; border-collapse: collapse; margin: 1em 0; }
+        th, td { text-align: left; padding: 0.5em; border-bottom: 1px solid #333; }
+        th { color: #888; font-size: 0.85em; }
+        .paid { color: #2d6a4f; }
+        .unpaid { color: #6b2c2c; }
+    </style>
+</head>
+<body>
+    <h1>🔑 {{ card.uid }}</h1>
+    <p><a href="{% url 'wallet-dashboard' %}">← Back to wallet</a></p>
+
+    <span class="status {% if card.is_enabled %}enabled{% else %}disabled{% endif %}">
+        {% if card.is_enabled %}Active{% else %}Disabled{% endif %}
+    </span>
+
+    <div class="info">
+        <dl>
+            <dt>Card ID</dt>
+            <dd>#{{ card.id }}</dd>
+            <dt>UID</dt>
+            <dd>{{ card.uid }}</dd>
+            <dt>Taps</dt>
+            <dd>{{ card.counter }}</dd>
+            <dt>Per-Transaction Limit</dt>
+            <dd>{% if card.tx_limit %}{{ card.tx_limit }} sats{% else %}unlimited{% endif %}</dd>
+            <dt>Daily Limit</dt>
+            <dd>{% if card.daily_limit %}{{ card.daily_limit }} sats{% else %}unlimited{% endif %}</dd>
+            <dt>Spent Today</dt>
+            <dd>{{ card.daily_spent }} sats</dd>
+        </dl>
+    </div>
+
+    <h2>📊 Recent Taps</h2>
+    {% if hits %}
+    <table>
+        <thead>
+            <tr>
+                <th>Time</th>
+                <th>Amount</th>
+                <th>Status</th>
+            </tr>
+        </thead>
+        <tbody>
+            {% for hit in hits %}
+            <tr>
+                <td>{{ hit.created_at|date:"M d, H:i" }}</td>
+                <td>{% if hit.amount_sats %}{{ hit.amount_sats }} sats{% else %}—{% endif %}</td>
+                <td class="{% if hit.was_paid %}paid{% else %}unpaid{% endif %}">
+                    {% if hit.was_paid %}✓ Paid{% else %}✗{% endif %}
+                </td>
+            </tr>
+            {% endfor %}
+        </tbody>
+    </table>
+    {% else %}
+    <p style="color:#666;">No taps yet.</p>
+    {% endif %}
+</body>
+</html>

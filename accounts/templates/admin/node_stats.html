@@ -1,0 +1,153 @@
+{% extends "admin/base_site.html" %}
+{% load i18n %}
+
+{% block title %}Node Stats{% endblock %}
+{% block content_title %}<h1>⚡ Node Stats</h1>{% endblock %}
+
+{% block extrastyle %}
+<style>
+    .stats-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 1em; margin: 1.5em 0; }
+    .stat-card { background: #f8f9fa; border: 1px solid #dee2e6; border-radius: 8px; padding: 1em; }
+    .stat-card .label { font-size: 0.85em; color: #666; margin-bottom: 0.3em; }
+    .stat-card .value { font-size: 1.5em; font-weight: bold; font-family: monospace; }
+    .stat-card .sub { font-size: 0.8em; color: #888; }
+    .stat-card.warn { border-color: #ffc107; background: #fff8e1; }
+    .stat-card.danger { border-color: #dc3545; background: #fff5f5; }
+    .stat-card.ok { border-color: #28a745; background: #f0fff4; }
+
+    .channel-list { margin: 1em 0; }
+    .channel { background: #f8f9fa; border: 1px solid #dee2e6; border-radius: 8px; padding: 1em; margin: 0.5em 0; }
+    .channel .header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 0.5em; }
+    .channel .id { font-family: monospace; font-weight: bold; }
+    .channel .state { font-size: 0.8em; padding: 2px 8px; border-radius: 4px; color: #fff; }
+    .channel .state.open { background: #28a745; }
+    .channel .state.closed { background: #dc3545; }
+    .channel .state.pending { background: #ffc107; color: #333; }
+
+    .liquidity-bar { height: 24px; border-radius: 4px; overflow: hidden; display: flex; margin: 0.5em 0; }
+    .liquidity-bar .local { background: #007bff; }
+    .liquidity-bar .remote { background: #28a745; }
+    .liquidity-labels { display: flex; justify-content: space-between; font-size: 0.85em; }
+    .liquidity-labels .local { color: #007bff; }
+    .liquidity-labels .remote { color: #28a745; }
+
+    .peer { font-family: monospace; font-size: 0.85em; color: #666; word-break: break-all; }
+    .info-table { width: 100%; border-collapse: collapse; margin: 1em 0; }
+    .info-table td { padding: 0.4em 0.8em; border-bottom: 1px solid #eee; }
+    .info-table td:first-child { font-weight: bold; color: #555; width: 200px; }
+</style>
+{% endblock %}
+
+{% block content %}
+
+<!-- Overview Cards -->
+<div class="stats-grid">
+    <div class="stat-card">
+        <div class="label">On-chain Balance</div>
+        <div class="value">{{ onchain_confirmed }} BTC</div>
+        {% if onchain_unconfirmed and onchain_unconfirmed != "0" %}
+        <div class="sub">+ {{ onchain_unconfirmed }} unconfirmed</div>
+        {% endif %}
+    </div>
+
+    <div class="stat-card">
+        <div class="label">Lightning Balance</div>
+        <div class="value">{{ lightning_balance }} BTC</div>
+    </div>
+
+    <div class="stat-card {% if total_remote < 10000 %}danger{% elif total_remote < 100000 %}warn{% else %}ok{% endif %}">
+        <div class="label">Inbound Liquidity</div>
+        <div class="value">{{ total_remote|floatformat:0 }} sat</div>
+        <div class="sub">Can receive up to this</div>
+    </div>
+
+    <div class="stat-card">
+        <div class="label">Outbound Liquidity</div>
+        <div class="value">{{ total_local|floatformat:0 }} sat</div>
+        <div class="sub">Can send up to this</div>
+    </div>
+
+    <div class="stat-card {% if pending_payments > 0 %}warn{% endif %}">
+        <div class="label">Pending Payments</div>
+        <div class="value">{{ pending_payments }}</div>
+        {% if review_payments > 0 %}
+        <div class="sub" style="color:#dc3545;">⚠️ {{ review_payments }} need review</div>
+        {% endif %}
+    </div>
+
+    <div class="stat-card {% if free_addresses < 10 %}warn{% endif %}">
+        <div class="label">Address Pool</div>
+        <div class="value">{{ free_addresses }}</div>
+        <div class="sub">Free on-chain addresses</div>
+    </div>
+</div>
+
+<!-- Total Liquidity Bar -->
+<h2>Liquidity Overview</h2>
+{% if total_capacity > 0 %}
+<div class="liquidity-bar">
+    <div class="local" style="width:{{ total_local_pct }}%;" title="Outbound: {{ total_local }} sat"></div>
+    <div class="remote" style="width:{% widthratio total_remote total_capacity 100 %}%;" title="Inbound: {{ total_remote }} sat"></div>
+</div>
+<div class="liquidity-labels">
+    <span class="local">◀ Outbound {{ total_local|floatformat:0 }} sat ({{ total_local_pct }}%)</span>
+    <span class="remote">Inbound {{ total_remote|floatformat:0 }} sat ({% widthratio total_remote total_capacity 100 %}%) ▶</span>
+</div>
+{% else %}
+<p>No channels open.</p>
+{% endif %}
+
+<!-- Channels -->
+<h2>Channels ({{ channels|length }})</h2>
+<div class="channel-list">
+{% for ch in channels %}
+<div class="channel">
+    <div class="header">
+        <span class="id">{{ ch.short_id }}</span>
+        <span class="state {% if ch.state == 'OPEN' %}open{% elif ch.state == 'CLOSED' %}closed{% else %}pending{% endif %}">
+            {{ ch.state }}{% if ch.peer_state %} · {{ ch.peer_state }}{% endif %}
+        </span>
+    </div>
+
+    <div class="liquidity-bar">
+        <div class="local" style="width:{{ ch.local_pct }}%;"></div>
+        <div class="remote" style="width:{{ ch.remote_pct }}%;"></div>
+    </div>
+    <div class="liquidity-labels">
+        <span class="local">◀ {{ ch.local|floatformat:0 }} sat</span>
+        <span>{{ ch.capacity|floatformat:0 }} sat total</span>
+        <span class="remote">{{ ch.remote|floatformat:0 }} sat ▶</span>
+    </div>
+
+    <div class="peer">Peer: {{ ch.peer }}</div>
+    <div style="font-size:0.8em;color:#888;margin-top:0.3em;">
+        Reserves: local {{ ch.local_reserve }} sat · remote {{ ch.remote_reserve }} sat
+    </div>
+</div>
+{% empty %}
+<p>No channels.</p>
+{% endfor %}
+</div>
+
+<!-- Node Info -->
+<h2>Node Info</h2>
+<table class="info-table">
+    <tr><td>Network</td><td>{{ node_info.network }}</td></tr>
+    <tr><td>Electrum Server</td><td>{{ node_info.server }}</td></tr>
+    <tr><td>Block Height</td><td>{{ node_info.block_height }} / {{ node_info.server_height }}</td></tr>
+    <tr><td>Connected</td><td>{% if node_info.connected %}✅ Yes{% else %}❌ No{% endif %}</td></tr>
+    <tr><td>Electrum Version</td><td>{{ node_info.version }}</td></tr>
+    <tr><td>Peers</td><td>{{ peers|length }}</td></tr>
+</table>
+
+{% if peers %}
+<h3>Connected Peers</h3>
+{% for p in peers %}
+<div class="peer" style="margin:0.3em 0;">
+    {{ p.node_id }} · {{ p.num_channels }} channel{{ p.num_channels|pluralize }}
+    {% if p.initialized %}✅{% else %}⏳{% endif %}
+</div>
+{% endfor %}
+{% endif %}
+
+{% endblock %}

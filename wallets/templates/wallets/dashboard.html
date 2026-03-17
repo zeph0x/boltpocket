@@ -1,0 +1,1483 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <title>BoltPocket</title>
+    <style>
+        body { font-family: -apple-system, sans-serif; max-width: 600px; margin: 0 auto; padding: 1em; background: #1a1a2e; color: #eee; }
+        h1, h2, h3 { color: #f7931a; }
+        a { color: #f7931a; }
+        .balance { font-size: 2em; margin: 0.5em 0; }
+        .btn { display: inline-block; padding: 0.5em 1em; background: #f7931a; color: #000; text-decoration: none; border-radius: 4px; font-weight: bold; border: none; cursor: pointer; font-size: 1em; }
+        .btn:hover { background: #e8850f; }
+        .btn:disabled { background: #555; color: #999; cursor: not-allowed; }
+
+        /* Tabs */
+        .tabs { display: flex; gap: 0; border-bottom: 2px solid #333; margin: 1em 0 0 0; }
+        .tab { padding: 0.7em 1.2em; cursor: pointer; color: #888; border-bottom: 2px solid transparent; margin-bottom: -2px; font-weight: bold; transition: all 0.2s; }
+        .tab:hover { color: #ccc; }
+        .tab.active { color: #f7931a; border-bottom-color: #f7931a; }
+        .tab-content { display: none; padding: 1.5em 0; }
+        .tab-content.active { display: block; }
+
+        /* QR */
+        .qr-section { text-align: center; margin: 1.5em 0; }
+        .qr-section canvas { border-radius: 8px; }
+        .address-box { background: #16213e; padding: 1em; border-radius: 8px; margin: 1em 0; word-break: break-all; position: relative; }
+        .address-box code { font-size: 1em; user-select: all; color: #f7931a; }
+        .copy-btn { position: absolute; right: 0.5em; top: 50%; transform: translateY(-50%); background: #f7931a; color: #000; border: none; padding: 0.3em 0.7em; border-radius: 4px; cursor: pointer; font-size: 0.85em; font-weight: bold; }
+        .copy-btn:hover { background: #e8850f; }
+        .sub-toggle { display: flex; gap: 0; margin: 1em 0; justify-content: center; }
+        .sub-toggle button { padding: 0.5em 1.5em; border: 1px solid #333; background: #16213e; color: #888; cursor: pointer; font-weight: bold; }
+        .sub-toggle button:first-child { border-radius: 6px 0 0 6px; }
+        .sub-toggle button:last-child { border-radius: 0 6px 6px 0; }
+        .sub-toggle button.active { background: #f7931a; color: #000; border-color: #f7931a; }
+        .sub-panel { display: none; }
+        .sub-panel.active { display: block; }
+
+        /* Cards */
+        .card-list { list-style: none; padding: 0; }
+        .card-item { background: #16213e; padding: 1em; margin: 0.5em 0; border-radius: 8px; display: flex; justify-content: space-between; align-items: center; }
+        .card-item .name { font-weight: bold; }
+        .card-item .status { font-size: 0.8em; padding: 2px 8px; border-radius: 4px; }
+        .enabled { background: #2d6a4f; }
+        .disabled { background: #6b2c2c; }
+
+        /* Table */
+        table { width: 100%; border-collapse: collapse; margin: 1em 0; }
+        th, td { text-align: left; padding: 0.5em; border-bottom: 1px solid #333; font-size: 0.9em; }
+        th { color: #888; font-size: 0.8em; }
+        .tx-in { color: #2d6a4f; }
+        .tx-out { color: #e74c3c; }
+        .tx-fee { color: #888; }
+        .sats { font-family: monospace; }
+
+        /* QR Scanner */
+        #qr-scanner-container { background: #000; border-radius: 8px; }
+        #qr-scanner-container video { border-radius: 8px; }
+        #qr-shaded-region { border-color: #f7931a !important; }
+
+        /* Send form */
+        .send-form { background: #16213e; padding: 1.5em; border-radius: 8px; margin: 1em 0; }
+        .send-form label { display: block; color: #888; font-size: 0.85em; margin-bottom: 0.3em; margin-top: 1em; }
+        .send-form label:first-child { margin-top: 0; }
+        .send-form input, .send-form textarea { width: 100%; padding: 0.7em; border: 1px solid #333; border-radius: 4px; background: #1a1a2e; color: #eee; font-size: 1em; box-sizing: border-box; font-family: monospace; }
+        .send-form textarea { resize: vertical; min-height: 60px; }
+        .send-form input:focus, .send-form textarea:focus { border-color: #f7931a; outline: none; }
+        .send-form .hint { color: #666; font-size: 0.8em; margin-top: 0.3em; }
+        .send-form .amount-row { display: flex; gap: 0.5em; align-items: center; }
+        .send-form .amount-row input { flex: 1; }
+        .send-form .amount-row .unit { color: #888; font-weight: bold; white-space: nowrap; }
+        .send-result { margin-top: 1em; padding: 1em; border-radius: 6px; display: none; }
+        .send-result.success { display: block; background: #1a3a2a; color: #4ade80; }
+        .send-result.error { display: block; background: #3a1a1a; color: #f87171; }
+
+        /* Header */
+        .wallet-header { display: flex; align-items: center; gap: 1em; margin-bottom: 0.5em; }
+        .wallet-header .identicon { border-radius: 50%; flex-shrink: 0; }
+        .wallet-header .info { flex: 1; min-width: 0; }
+        .wallet-header .branding { font-size: 0.7em; color: #555; margin: 0; }
+        .wallet-header .ln-addr { font-family: monospace; font-size: 0.8em; color: #f7931a; word-break: break-all; margin: 0.2em 0 0 0; }
+        .wallet-header .balance-primary { font-size: 1.8em; font-weight: bold; margin: 0.1em 0 0 0; }
+        .wallet-header .balance-secondary { font-size: 0.9em; color: #888; margin: 0; }
+        .wallet-header .debug-ids { font-size: 0.65em; color: #444; margin: 0.2em 0 0 0; }
+    </style>
+</head>
+<body>
+    <div class="wallet-header">
+        <svg id="identicon" class="identicon" width="56" height="56"></svg>
+        <div class="info">
+            <p class="ln-addr">{{ ln_address }}</p>
+            {% if primary_display %}<p class="balance-primary">{{ primary_display }}</p>{% endif %}
+            {% if secondary_display %}<p class="balance-secondary">{{ secondary_display }}</p>{% endif %}
+            <p class="debug-ids">Wallet #{{ wallet.id }} · Account #{{ account.id }}</p>
+        </div>
+    </div>
+
+    {% if not cards %}
+    <!-- Setup screen — no cards yet -->
+    <div id="setup-screen" style="text-align:center; padding:2em 1em;">
+        <h2>🔑 Set Up Your Card</h2>
+        <p style="color:#888; margin-bottom:1.5em;">Link an NFC card to activate your wallet.</p>
+
+        <div class="send-form" style="text-align:left;">
+            <label for="setup-tx-limit">Per-transaction limit (sats, 0 = no limit)</label>
+            <input type="number" id="setup-tx-limit" value="0" min="0">
+
+            <label for="setup-daily-limit">Daily limit (sats, 0 = no limit)</label>
+            <input type="number" id="setup-daily-limit" value="0" min="0">
+
+            <br>
+            <button class="btn" id="setup-add-btn" onclick="addCard()" style="width:100%;">Add Card</button>
+        </div>
+
+        <div id="setup-qr" style="display:none; margin-top:1.5em;">
+            <p style="color:#f7931a; font-weight:bold;">Scan with BoltCard programmer app:</p>
+            <div class="qr-section">
+                <canvas id="qr-setup"></canvas>
+            </div>
+            <div class="address-box">
+                <code id="setup-auth-url" style="font-size:0.7em;"></code>
+                <button class="copy-btn" onclick="copyText('setup-auth-url')">Copy</button>
+            </div>
+            <p style="color:#888; font-size:0.85em;">
+                1. Open the BoltCard app on Android<br>
+                2. Scan this QR code<br>
+                3. Tap your NFC card when prompted<br>
+                4. Reload this page when done
+            </p>
+            <br>
+            <button class="btn" onclick="location.reload()" style="width:100%;background:#2d6a4f;">Done — Reload</button>
+        </div>
+        <div class="send-result" id="setup-result"></div>
+    </div>
+    {% else %}
+
+    <!-- Normal wallet UI -->
+    <div class="tabs">
+        <div class="tab active" data-tab="wallet">Wallet</div>
+        <div class="tab" data-tab="send">Send</div>
+        <div class="tab" data-tab="receive">Receive</div>
+        <div class="tab" data-tab="settings">⚙️</div>
+        <div class="tab" data-tab="info">ℹ️</div>
+    </div>
+
+    <!-- Wallet Tab -->
+    <div id="tab-wallet" class="tab-content active">
+        <h2>🔑 Bolt Cards</h2>
+        <ul class="card-list">
+            {% for card in cards %}
+            <li class="card-item">
+                <div>
+                    <span class="name">{{ card.uid }}</span>
+                    <span class="status {% if card.is_enabled %}enabled{% else %}disabled{% endif %}">
+                        {% if card.is_enabled %}active{% else %}disabled{% endif %}
+                    </span>
+                    <br>
+                    <small>Card #{{ card.id }} · Taps: {{ card.counter }} · Limit: {% if card.tx_limit %}{{ card.tx_limit }}{% else %}∞{% endif %}/tx, {% if card.daily_limit %}{{ card.daily_limit }}{% else %}∞{% endif %}/day</small>
+                </div>
+                <a href="{% url 'boltcard-detail' card.id %}" class="btn">Details</a>
+            </li>
+            {% endfor %}
+        </ul>
+
+        <h2>📊 Transactions</h2>
+        {% if transactions %}
+        <table>
+            <thead>
+                <tr>
+                    <th>Time</th>
+                    <th>Type</th>
+                    <th>Amount</th>
+                </tr>
+            </thead>
+            <tbody>
+                {% for tx in transactions %}
+                <tr>
+                    <td>{{ tx.created_at|date:"M d, H:i" }}</td>
+                    <td>{{ tx.get_tx_type_display }}</td>
+                    {% if tx.to_account_id == account.id %}
+                    <td class="tx-in sats">+{{ tx.amount|floatformat:8 }}</td>
+                    {% elif tx.tx_type == 4 or tx.tx_type == 8 %}
+                    <td class="tx-fee sats">-{{ tx.amount|floatformat:8 }}</td>
+                    {% else %}
+                    <td class="tx-out sats">-{{ tx.amount|floatformat:8 }}</td>
+                    {% endif %}
+                </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+        {% else %}
+        <p style="color:#666;">No transactions yet.</p>
+        {% endif %}
+    </div>
+
+    <!-- Send Tab -->
+    <div id="tab-send" class="tab-content">
+        <div class="sub-toggle" data-group="send">
+            <button class="active" data-panel="send-one">One-time</button>
+            <button data-panel="send-recurring">Recurring</button>
+        </div>
+
+        <!-- One-time payment -->
+        <div id="panel-send-one" class="sub-panel active" data-group="send">
+            <div class="send-form">
+                <div style="display:flex;justify-content:space-between;align-items:center;">
+                    <label for="send-dest" style="margin:0;">Destination</label>
+                    <button class="btn" id="scan-qr-btn" onclick="startQrScan()" style="font-size:0.8em;padding:0.3em 0.7em;">📷 Scan QR</button>
+                </div>
+                <div id="qr-scanner-container" style="display:none;margin:0.5em 0;border-radius:8px;overflow:hidden;"></div>
+                <textarea id="send-dest" placeholder="LN invoice, lightning address, or bitcoin address" rows="2"></textarea>
+                <div class="hint" id="dest-hint"></div>
+
+                <label for="send-amount">Amount</label>
+                <div class="amount-row">
+                    <input type="number" id="send-amount" placeholder="0" min="1" step="any">
+                    <select id="send-unit" style="padding:0.7em;border:1px solid #333;border-radius:4px;background:#1a1a2e;color:#eee;font-weight:bold;">
+                        <option value="sats" {% if preferred_unit == 'sats' %}selected{% endif %}>sats</option>
+                        {% for code, label in fiat_currency_choices %}
+                        <option value="{{ code }}" {% if code == preferred_unit %}selected{% endif %}>{{ label }}</option>
+                        {% endfor %}
+                    </select>
+                </div>
+                <div class="hint" id="send-conversion">Available: {{ balance_sats }} sats</div>
+
+                <br>
+                <button class="btn" id="send-btn" onclick="submitSend()" style="width:100%;">Send Payment</button>
+            </div>
+            <div class="send-result" id="send-result"></div>
+        </div>
+
+        <!-- Recurring payments -->
+        <div id="panel-send-recurring" class="sub-panel" data-group="send">
+            <div class="send-form">
+                <label for="rp-dest">Destination</label>
+                <textarea id="rp-dest" placeholder="Lightning address or bitcoin address (not invoices)" rows="2"></textarea>
+                <div class="hint" id="rp-dest-hint"></div>
+
+                <label for="rp-amount">Amount</label>
+                <div class="amount-row">
+                    <input type="number" id="rp-amount" placeholder="0" min="1" step="any">
+                    <select id="rp-unit" style="padding:0.7em;border:1px solid #333;border-radius:4px;background:#1a1a2e;color:#eee;font-weight:bold;">
+                        <option value="sats" {% if preferred_unit == 'sats' %}selected{% endif %}>sats</option>
+                        {% for code, label in fiat_currency_choices %}
+                        <option value="{{ code }}" {% if code == preferred_unit %}selected{% endif %}>{{ label }}</option>
+                        {% endfor %}
+                    </select>
+                </div>
+                <div class="hint" id="rp-conversion"></div>
+
+                <label for="rp-frequency">Frequency</label>
+                <select id="rp-frequency" style="width:100%; padding:0.7em; border:1px solid #333; border-radius:4px; background:#1a1a2e; color:#eee; font-size:1em;">
+                    <option value="once">Once (scheduled)</option>
+                    <option value="daily">Daily</option>
+                    <option value="weekly">Weekly</option>
+                    <option value="biweekly">Every 2 weeks</option>
+                    <option value="monthly">Monthly</option>
+                </select>
+
+                <label for="rp-start-date">First payment (optional)</label>
+                <input type="date" id="rp-start-date" style="color-scheme:dark;">
+                <div class="hint">When to start. Defaults to one interval from now.</div>
+
+                <label for="rp-end-date">Last payment (optional)</label>
+                <input type="date" id="rp-end-date" style="color-scheme:dark;">
+                <div class="hint">Payments stop after this date. Leave empty for no limit.</div>
+
+                <label for="rp-desc">Description (optional)</label>
+                <input type="text" id="rp-desc" placeholder="e.g. VPS hosting, stacking sats...">
+
+                <br>
+                <button class="btn" id="rp-create-btn" onclick="createRecurring()" style="width:100%;">Create Recurring Payment</button>
+            </div>
+            <div class="send-result" id="rp-result"></div>
+
+            <h3 style="margin-top:1.5em;">Active Recurring Payments</h3>
+            <div id="rp-list"><p style="color:#666;">Loading...</p></div>
+        </div>
+    </div>
+
+    <!-- Receive Tab -->
+    <div id="tab-receive" class="tab-content">
+
+        <!-- Amount input for invoice generation -->
+        <div class="send-form" style="margin-bottom:1em;">
+            <label for="recv-amount">Amount (optional — for unified QR)</label>
+            <div class="amount-row">
+                <input type="number" id="recv-amount" placeholder="0" min="1" step="any">
+                <select id="recv-unit" style="padding:0.7em;border:1px solid #333;border-radius:4px;background:#1a1a2e;color:#eee;font-weight:bold;">
+                    <option value="sats" {% if preferred_unit == 'sats' %}selected{% endif %}>sats</option>
+                    {% for code, label in fiat_currency_choices %}
+                    <option value="{{ code }}" {% if code == preferred_unit %}selected{% endif %}>{{ label }}</option>
+                    {% endfor %}
+                </select>
+            </div>
+            <div class="hint" id="recv-conversion"></div>
+            <br>
+            <button class="btn" id="recv-gen-btn" onclick="generateInvoice()" style="width:100%;">Generate Invoice</button>
+        </div>
+
+        <!-- Unified BIP-21 QR (shown after generation) -->
+        <div id="recv-unified" style="display:none;">
+            <button class="btn" id="charge-card-btn" onclick="startCardCharge()" style="width:100%;margin-bottom:0.5em;background:#2d6a4f;">
+                🔑 Charge Bolt Card
+            </button>
+            <div id="charge-card-manual" style="display:none;margin-bottom:0.5em;">
+                <input type="text" id="charge-card-url" placeholder="Paste bolt card tap URL (lnurlw://...)" 
+                    style="width:100%;padding:0.5em;background:#1a1a2e;border:1px solid #333;border-radius:4px;color:#eee;font-family:monospace;font-size:0.85em;box-sizing:border-box;">
+                <button class="btn" onclick="manualCardCharge()" style="width:100%;margin-top:0.5em;">Charge</button>
+                <button class="btn" onclick="cancelCardCharge()" style="width:100%;margin-top:0.3em;background:#555;">Cancel</button>
+            </div>
+            <div class="send-result" id="charge-result"></div>
+
+            <div class="qr-section">
+                <canvas id="qr-unified"></canvas>
+            </div>
+            <div class="address-box">
+                <code id="unified-uri" style="font-size:0.75em;"></code>
+                <button class="copy-btn" onclick="copyText('unified-uri')">Copy</button>
+            </div>
+            <p style="color:#888; font-size:0.85em; text-align:center;">
+                Unified QR — works with both Lightning and on-chain wallets.
+            </p>
+        </div>
+
+        <hr style="border-color:#333; margin:1.5em 0;">
+        <p style="color:#888; font-size:0.85em; text-align:center; margin-bottom:0.5em;">Or share your addresses directly (any amount):</p>
+
+        <div class="sub-toggle" data-group="receive">
+            <button class="active" data-panel="lightning">⚡ Lightning</button>
+            <button data-panel="onchain">🔗 On-chain</button>
+        </div>
+
+        <div id="panel-lightning" class="sub-panel active" data-group="receive">
+            <div class="qr-section">
+                <canvas id="qr-lightning"></canvas>
+            </div>
+            <div class="address-box">
+                <code id="ln-addr">{{ ln_address }}</code>
+                <button class="copy-btn" onclick="copyText('ln-addr')">Copy</button>
+            </div>
+            <p style="color:#888; font-size:0.85em; text-align:center;">
+                Lightning address — sender chooses the amount.
+            </p>
+        </div>
+
+        <div id="panel-onchain" class="sub-panel" data-group="receive">
+            <div class="qr-section">
+                <canvas id="qr-onchain"></canvas>
+            </div>
+            <div class="address-box">
+                <code id="onchain-addr">{{ onchain_address }}</code>
+                <button class="copy-btn" onclick="copyText('onchain-addr')">Copy</button>
+            </div>
+            <p style="color:#888; font-size:0.85em; text-align:center;">
+                On-chain address. Deposits credited after 1 confirmation.
+            </p>
+        </div>
+    </div>
+
+    <!-- Settings Tab -->
+    <div id="tab-settings" class="tab-content">
+        <h2>⚙️ Settings</h2>
+        <div class="send-form">
+            <label for="setting-primary">Primary Currency</label>
+            <select id="setting-primary" style="width:100%; padding:0.7em; border:1px solid #333; border-radius:4px; background:#1a1a2e; color:#eee; font-size:1em;">
+                {% for code, label in display_currency_choices %}
+                <option value="{{ code }}" {% if code == wallet.primary_currency %}selected{% endif %}>{{ label }}</option>
+                {% endfor %}
+            </select>
+            <div class="hint">Main balance display</div>
+
+            <label for="setting-secondary" style="margin-top:1em;">Secondary Currency</label>
+            <select id="setting-secondary" style="width:100%; padding:0.7em; border:1px solid #333; border-radius:4px; background:#1a1a2e; color:#eee; font-size:1em;">
+                {% for code, label in display_currency_choices %}
+                <option value="{{ code }}" {% if code == wallet.secondary_currency %}selected{% endif %}>{{ label }}</option>
+                {% endfor %}
+            </select>
+            <div class="hint">Shown below the main balance</div>
+
+            <br>
+            <button class="btn" id="settings-save-btn" onclick="saveSettings()" style="width:100%;">Save Settings</button>
+        </div>
+        <div class="send-result" id="settings-result"></div>
+
+        <h3 style="margin-top:2em;">Wallet Info</h3>
+        <div style="background:#16213e; padding:1em; border-radius:8px;">
+            <p style="margin:0.3em 0;"><small style="color:#888;">Lightning Address</small><br><code style="color:#f7931a;">{{ ln_address }}</code></p>
+            <p style="margin:0.3em 0;"><small style="color:#888;">On-chain Address</small><br><code style="color:#f7931a;">{{ onchain_address }}</code></p>
+            <p style="margin:0.3em 0;"><small style="color:#888;">Wallet ID</small><br><code style="color:#888;">{{ wallet.id }}</code></p>
+        </div>
+    </div>
+
+    <!-- Info Tab -->
+    <div id="tab-info" class="tab-content">
+        <h2>ℹ️ About BoltPocket</h2>
+
+        <div style="background:#16213e; padding:1.5em; border-radius:8px; margin:1em 0;">
+            <p style="margin:0 0 1em 0;">BoltPocket is a self-hosted Bitcoin wallet with NFC card payments. Tap your card to pay at any merchant that accepts Lightning.</p>
+
+            <h3 style="color:#f7931a; margin:1em 0 0.5em 0;">🔑 Your Card</h3>
+            <p style="color:#ccc;">Your NFC card works like a contactless debit card, but for Bitcoin. Tap it at any point-of-sale that supports <a href="https://boltcard.org" target="_blank">bolt cards</a> or LNURL-withdraw.</p>
+
+            <h3 style="color:#f7931a; margin:1em 0 0.5em 0;">⚡ Lightning Address</h3>
+            <p style="color:#ccc;">Anyone can send you sats using your lightning address: <code style="color:#f7931a;">{{ ln_address }}</code>. It works with any Lightning wallet — just like an email address for money.</p>
+
+            <h3 style="color:#f7931a; margin:1em 0 0.5em 0;">🗺️ Where to Pay</h3>
+            <p style="color:#ccc;">Find merchants that accept Lightning and NFC card payments near you:</p>
+            <a href="https://btcmap.org/map" target="_blank" class="btn" style="display:block; text-align:center; margin:0.5em 0;">
+                🗺️ Open BTC Map
+            </a>
+            <p style="color:#888; font-size:0.85em; margin-top:0.5em;">Filter for "Lightning Contactless" to find merchants that accept tap payments.</p>
+
+            <h3 style="color:#f7931a; margin:1em 0 0.5em 0;">📱 How It Works</h3>
+            <ul style="color:#ccc; padding-left:1.2em;">
+                <li style="margin:0.5em 0;"><strong>Receive</strong> — share your lightning address or show the QR code</li>
+                <li style="margin:0.5em 0;"><strong>Pay in shops</strong> — tap your NFC card at the terminal</li>
+                <li style="margin:0.5em 0;"><strong>Send</strong> — scan a QR or enter an address, confirm with card tap</li>
+                <li style="margin:0.5em 0;"><strong>Save</strong> — set up recurring payments to stack sats automatically</li>
+            </ul>
+
+            <h3 style="color:#f7931a; margin:1em 0 0.5em 0;">🔒 Security</h3>
+            <p style="color:#ccc;">Every payment from your wallet requires a physical tap of your NFC card. No card, no transaction. Your card's keys are encrypted and never stored in plaintext.</p>
+        </div>
+    </div>
+
+    {% endif %}
+
+    <script src="https://cdn.jsdelivr.net/npm/qrious@4.0.2/dist/qrious.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/jdenticon@3.3.0/dist/jdenticon.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/html5-qrcode@2.3.8/html5-qrcode.min.js"></script>
+    <script>
+    // --- Identicon ---
+    jdenticon.update('#identicon', '{{ ln_address }}');
+
+    // --- Add Card ---
+    function addCard() {
+        var txLimit = parseInt(document.getElementById('setup-tx-limit').value) || 0;
+        var dailyLimit = parseInt(document.getElementById('setup-daily-limit').value) || 0;
+        var btn = document.getElementById('setup-add-btn');
+
+        btn.disabled = true;
+        btn.textContent = 'Creating...';
+        showResult('', 'Sending request...', 'setup-result');
+
+        fetch('/wallet/boltcard/add/', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ tx_limit: txLimit, daily_limit: dailyLimit }),
+        })
+        .then(function(r) { return r.json().then(function(d) { return { ok: r.ok, data: d }; }); })
+        .then(function(res) {
+            btn.disabled = false;
+            btn.textContent = 'Add Card';
+            if (res.ok && res.data.ok) {
+                var authUrl = res.data.auth_url;
+                document.getElementById('setup-auth-url').textContent = authUrl;
+                document.getElementById('setup-qr').style.display = 'block';
+                new QRious({
+                    element: document.getElementById('qr-setup'),
+                    value: authUrl,
+                    size: 280,
+                    foreground: '#f7931a',
+                    background: '#1a1a2e',
+                    level: 'M',
+                });
+                showResult('success', '✅ Card created — scan QR with BoltCard app', 'setup-result');
+            } else {
+                showResult('error', '❌ ' + (res.data.error || 'Failed'), 'setup-result');
+            }
+        })
+        .catch(function(err) {
+            btn.disabled = false;
+            btn.textContent = 'Add Card';
+            showResult('error', '❌ Error: ' + err.message, 'setup-result');
+        });
+    }
+
+    // --- Shared utilities ---
+    function showResult(type, msg, elId) {
+        var el = document.getElementById(elId || 'send-result');
+        el.className = 'send-result ' + type;
+        el.textContent = msg;
+        el.style.display = 'block';
+    }
+
+    function copyText(id) {
+        var text = document.getElementById(id).textContent.trim();
+        navigator.clipboard.writeText(text).then(function() {
+            var btn = document.getElementById(id).parentElement.querySelector('.copy-btn');
+            btn.textContent = 'Copied!';
+            setTimeout(function() { btn.textContent = 'Copy'; }, 1500);
+        });
+    }
+
+    {% if cards %}
+    // --- Tabs ---
+    document.querySelectorAll('.tab').forEach(function(tab) {
+        tab.addEventListener('click', function() {
+            document.querySelectorAll('.tab').forEach(function(t) { t.classList.remove('active'); });
+            document.querySelectorAll('.tab-content').forEach(function(c) { c.classList.remove('active'); });
+            tab.classList.add('active');
+            document.getElementById('tab-' + tab.dataset.tab).classList.add('active');
+            if (tab.dataset.tab === 'receive') generateQRs();
+        });
+    });
+
+    // --- Sub-toggles ---
+    document.querySelectorAll('.sub-toggle button').forEach(function(btn) {
+        btn.addEventListener('click', function() {
+            var group = btn.parentElement.dataset.group;
+            btn.parentElement.querySelectorAll('button').forEach(function(b) { b.classList.remove('active'); });
+            document.querySelectorAll('.sub-panel[data-group="' + group + '"]').forEach(function(p) { p.classList.remove('active'); });
+            btn.classList.add('active');
+            document.getElementById('panel-' + btn.dataset.panel).classList.add('active');
+        });
+    });
+
+    // --- Prices ---
+    var btcPrices = {};
+    var balanceSats = {{ balance_sats }};
+
+    function fetchPrices() {
+        fetch('/wallet/price/')
+        .then(function(r) { return r.json(); })
+        .then(function(data) { btcPrices = data.prices || {}; })
+        .catch(function() {});
+    }
+    fetchPrices();
+
+    function satsToFiat(sats, currency) {
+        var price = parseFloat(btcPrices[currency]);
+        if (!price) return null;
+        return (sats / 100000000 * price).toFixed(2);
+    }
+
+    function fiatToSats(fiatAmount, currency) {
+        var price = parseFloat(btcPrices[currency]);
+        if (!price) return null;
+        return Math.round(fiatAmount / price * 100000000);
+    }
+
+    // Live conversion on send amount
+    function updateSendConversion() {
+        var amount = parseFloat(document.getElementById('send-amount').value) || 0;
+        var unit = document.getElementById('send-unit').value;
+        var hint = document.getElementById('send-conversion');
+        if (amount <= 0) { hint.textContent = 'Available: ' + balanceSats + ' sats'; return; }
+
+        if (unit === 'sats') {
+            var fiat = satsToFiat(amount, '{{ fiat_currency|default:"USD" }}');
+            hint.textContent = fiat ? '≈ ' + fiat + ' {{ fiat_currency|default:"USD" }} · Available: ' + balanceSats + ' sats' : 'Available: ' + balanceSats + ' sats';
+        } else {
+            var sats = fiatToSats(amount, unit);
+            hint.textContent = sats ? '≈ ' + sats + ' sats · Available: ' + balanceSats + ' sats' : 'Price unavailable';
+        }
+    }
+    document.getElementById('send-amount').addEventListener('input', updateSendConversion);
+    document.getElementById('send-unit').addEventListener('change', updateSendConversion);
+
+    // Live conversion on recurring amount
+    function updateRpConversion() {
+        var amount = parseFloat(document.getElementById('rp-amount').value) || 0;
+        var unit = document.getElementById('rp-unit').value;
+        var hint = document.getElementById('rp-conversion');
+        if (amount <= 0) { hint.textContent = ''; return; }
+
+        if (unit === 'sats') {
+            var fiat = satsToFiat(amount, '{{ fiat_currency|default:"USD" }}');
+            hint.textContent = fiat ? '≈ ' + fiat + ' {{ fiat_currency|default:"USD" }}' : '';
+        } else {
+            var sats = fiatToSats(amount, unit);
+            hint.textContent = sats ? '≈ ' + sats + ' sats at current rate (converted at payment time)' : 'Price unavailable';
+        }
+    }
+    document.getElementById('rp-amount').addEventListener('input', updateRpConversion);
+    document.getElementById('rp-unit').addEventListener('change', updateRpConversion);
+
+    // --- QR ---
+    var qrGenerated = false;
+    function generateQRs() {
+        if (qrGenerated) return;
+        qrGenerated = true;
+        var lnAddr = document.getElementById('ln-addr').textContent.trim();
+        if (lnAddr) {
+            new QRious({ element: document.getElementById('qr-lightning'), value: lnAddr, size: 220, foreground: '#f7931a', background: '#1a1a2e', level: 'M' });
+        }
+        var onchainAddr = document.getElementById('onchain-addr').textContent.trim();
+        if (onchainAddr) {
+            new QRious({ element: document.getElementById('qr-onchain'), value: 'bitcoin:' + onchainAddr, size: 220, foreground: '#f7931a', background: '#1a1a2e', level: 'M' });
+        }
+    }
+
+    // --- Receive invoice generation ---
+    function updateRecvConversion() {
+        var amount = parseFloat(document.getElementById('recv-amount').value) || 0;
+        var unit = document.getElementById('recv-unit').value;
+        var hint = document.getElementById('recv-conversion');
+        if (amount <= 0) { hint.textContent = ''; return; }
+        if (unit === 'sats') {
+            var fiat = satsToFiat(amount, '{{ fiat_currency|default:"CHF" }}');
+            hint.textContent = fiat ? '≈ ' + fiat + ' {{ fiat_currency|default:"CHF" }}' : '';
+        } else {
+            var sats = fiatToSats(amount, unit);
+            hint.textContent = sats ? '≈ ' + sats + ' sats' : 'Price unavailable';
+        }
+    }
+    document.getElementById('recv-amount').addEventListener('input', updateRecvConversion);
+    document.getElementById('recv-unit').addEventListener('change', updateRecvConversion);
+
+    var currentInvoice = null;
+
+    function generateInvoice() {
+        var amount = parseFloat(document.getElementById('recv-amount').value) || 0;
+        var unit = document.getElementById('recv-unit').value;
+        var btn = document.getElementById('recv-gen-btn');
+
+        if (amount <= 0) { return; }
+
+        var amountSats;
+        if (unit === 'sats') {
+            amountSats = Math.round(amount);
+        } else {
+            amountSats = fiatToSats(amount, unit);
+            if (!amountSats) { alert('Price unavailable for ' + unit); return; }
+        }
+
+        btn.disabled = true;
+        btn.textContent = 'Generating...';
+        currentInvoice = null;
+        document.getElementById('recv-unified').style.display = 'none';
+        document.getElementById('charge-result').style.display = 'none';
+
+        fetch('/wallet/receive/invoice/', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ amount_sats: amountSats }),
+        })
+        .then(function(r) { return r.json().then(function(d) { return { ok: r.ok, data: d }; }); })
+        .then(function(res) {
+            btn.disabled = false;
+            btn.textContent = 'Generate Invoice';
+            if (res.ok) {
+                currentInvoice = res.data.lightning_invoice;
+                var uri = res.data.bip21;
+                document.getElementById('unified-uri').textContent = uri;
+                document.getElementById('recv-unified').style.display = 'block';
+                new QRious({
+                    element: document.getElementById('qr-unified'),
+                    value: uri.toUpperCase(),
+                    size: 280,
+                    foreground: '#f7931a',
+                    background: '#1a1a2e',
+                    level: 'M',
+                });
+            } else {
+                alert(res.data.error || 'Failed to generate invoice');
+            }
+        })
+        .catch(function() {
+            btn.disabled = false;
+            btn.textContent = 'Generate Invoice';
+            alert('Network error');
+        });
+    }
+
+    // --- Charge Bolt Card ---
+    var cardChargeScanner = null;
+
+    var nfcChargeActive = false;
+
+    function startCardCharge() {
+        if (!currentInvoice) { alert('Generate an invoice first'); return; }
+
+        var btn = document.getElementById('charge-card-btn');
+        var manualEl = document.getElementById('charge-card-manual');
+
+        // Toggle off
+        if (nfcChargeActive) {
+            cancelCardCharge();
+            return;
+        }
+
+        nfcChargeActive = true;
+
+        // Try Web NFC (must be called directly from user click)
+        if ('NDEFReader' in window) {
+            btn.textContent = '🔑 Tap card now...';
+            btn.style.background = '#f7931a';
+            var nfcCtrl = new AbortController();
+            btn._nfcCtrl = nfcCtrl;
+
+            var reader = new NDEFReader();
+            reader.scan({ signal: nfcCtrl.signal }).then(function() {
+                // Show manual fallback too while waiting
+                manualEl.style.display = 'block';
+
+                reader.onreading = function(event) {
+                    nfcCtrl.abort();
+                    for (var rec of event.message.records) {
+                        if (rec.recordType === 'url' || rec.recordType === 'absolute-url') {
+                            var url = new TextDecoder().decode(rec.data);
+                            cancelCardCharge();
+                            executeCardCharge(url);
+                            return;
+                        }
+                    }
+                    showResult('error', 'Could not read NFC URL from card.', 'charge-result');
+                    cancelCardCharge();
+                };
+            }).catch(function() {
+                // NFC permission denied or unavailable — manual only
+                btn.textContent = '✕ Cancel';
+                btn.style.background = '#555';
+                manualEl.style.display = 'block';
+                showResult('error', 'NFC not available — paste the card tap URL below.', 'charge-result');
+            });
+        } else {
+            // No NFC support at all — manual input only
+            btn.textContent = '✕ Cancel';
+            btn.style.background = '#555';
+            manualEl.style.display = 'block';
+            showResult('error', 'NFC not supported on this device — paste the card tap URL below.', 'charge-result');
+        }
+    }
+
+    function manualCardCharge() {
+        var url = document.getElementById('charge-card-url').value.trim();
+        if (!url) return;
+        cancelCardCharge();
+        executeCardCharge(url);
+    }
+
+    function cancelCardCharge() {
+        var btn = document.getElementById('charge-card-btn');
+        var manualEl = document.getElementById('charge-card-manual');
+
+        if (btn._nfcCtrl) { btn._nfcCtrl.abort(); btn._nfcCtrl = null; }
+
+        nfcChargeActive = false;
+        manualEl.style.display = 'none';
+        btn.disabled = false;
+        btn.textContent = '🔑 Charge Bolt Card';
+        btn.style.background = '#2d6a4f';
+    }
+
+    function executeCardCharge(cardUrl) {
+        var btn = document.getElementById('charge-card-btn');
+        btn.disabled = true;
+        btn.textContent = 'Charging...';
+
+        showResult('success', '⏳ Contacting card service...', 'charge-result');
+
+        fetch('/wallet/receive/charge-card/', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ card_url: cardUrl, invoice: currentInvoice }),
+        })
+        .then(function(r) { return r.json().then(function(d) { return { ok: r.ok, data: d }; }); })
+        .then(function(res) {
+            btn.disabled = false;
+            btn.textContent = '🔑 Charge Bolt Card';
+            if (res.ok) {
+                showResult('success', '✅ ' + (res.data.message || 'Card charged!'), 'charge-result');
+            } else {
+                showResult('error', '❌ ' + (res.data.error || 'Charge failed.'), 'charge-result');
+            }
+        })
+        .catch(function() {
+            btn.disabled = false;
+            btn.textContent = '🔑 Charge Bolt Card';
+            showResult('error', '❌ Network error.', 'charge-result');
+        });
+    }
+
+    // --- QR Scanner ---
+    var html5QrScanner = null;
+
+    function startQrScan() {
+        var container = document.getElementById('qr-scanner-container');
+        var btn = document.getElementById('scan-qr-btn');
+
+        if (html5QrScanner) {
+            stopQrScan();
+            return;
+        }
+
+        container.style.display = 'block';
+        btn.textContent = '✕ Close';
+
+        html5QrScanner = new Html5Qrcode('qr-scanner-container');
+        html5QrScanner.start(
+            { facingMode: 'environment' },
+            { fps: 10, qrbox: { width: 250, height: 250 } },
+            function(decodedText) {
+                stopQrScan();
+                parseScannedQr(decodedText);
+            },
+            function() { /* ignore scan errors */ }
+        ).catch(function(err) {
+            container.innerHTML = '<p style="color:#f87171;padding:1em;text-align:center;">Camera access denied or unavailable.</p>';
+            setTimeout(function() { stopQrScan(); }, 3000);
+        });
+    }
+
+    function stopQrScan() {
+        var container = document.getElementById('qr-scanner-container');
+        var btn = document.getElementById('scan-qr-btn');
+
+        if (html5QrScanner) {
+            html5QrScanner.stop().then(function() {
+                html5QrScanner.clear();
+                html5QrScanner = null;
+            }).catch(function() {
+                html5QrScanner = null;
+            });
+        }
+        container.style.display = 'none';
+        container.innerHTML = '';
+        btn.textContent = '📷 Scan QR';
+    }
+
+    // Decode BOLT11 invoice amount client-side
+    function decodeBolt11Amount(invoice) {
+        // BOLT11: lnbc[amount][multiplier]1...
+        // Multipliers: m=milli(0.001), u=micro(0.000001), n=nano(0.000000001), p=pico(0.000000000001)
+        var lower = invoice.toLowerCase();
+        var prefix;
+        if (lower.startsWith('lnbc')) prefix = 'lnbc';
+        else if (lower.startsWith('lntbs')) prefix = 'lntbs';
+        else if (lower.startsWith('lntb')) prefix = 'lntb';
+        else return null;
+
+        var rest = lower.substring(prefix.length);
+        // Find the amount: digits + optional multiplier before '1' separator
+        var match = rest.match(/^(\d+)([munp]?)1/);
+        if (!match) return null;
+
+        var num = parseInt(match[1]);
+        var mult = match[2];
+        var btc;
+        if (mult === 'm') btc = num * 0.001;
+        else if (mult === 'u') btc = num * 0.000001;
+        else if (mult === 'n') btc = num * 0.000000001;
+        else if (mult === 'p') btc = num * 0.000000000001;
+        else btc = num; // no multiplier = BTC
+
+        return Math.round(btc * 100000000); // sats
+    }
+
+    function parseScannedQr(text) {
+        text = text.trim();
+
+        var dest = '';
+        var amountSats = null;
+
+        // BIP-21: bitcoin:addr?amount=0.001&lightning=lnbc...
+        if (text.toLowerCase().startsWith('bitcoin:')) {
+            var withoutScheme = text.substring(8);
+            var qIdx = withoutScheme.indexOf('?');
+            var addr = qIdx >= 0 ? withoutScheme.substring(0, qIdx) : withoutScheme;
+            var params = {};
+            if (qIdx >= 0) {
+                withoutScheme.substring(qIdx + 1).split('&').forEach(function(p) {
+                    var kv = p.split('=');
+                    if (kv.length === 2) params[kv[0].toLowerCase()] = kv[1];
+                });
+            }
+
+            // Prefer lightning invoice if present
+            if (params.lightning) {
+                dest = params.lightning;
+                amountSats = decodeBolt11Amount(dest);
+            } else {
+                dest = addr;
+            }
+
+            // BIP-21 amount overrides (it's in BTC)
+            if (params.amount) {
+                amountSats = Math.round(parseFloat(params.amount) * 100000000);
+            }
+        }
+        // lightning: prefix
+        else if (text.toLowerCase().startsWith('lightning:')) {
+            dest = text.substring(10);
+        }
+        // Raw input
+        else {
+            dest = text;
+        }
+
+        // Try to decode amount from LN invoice
+        var isInvoice = dest.toLowerCase().startsWith('lnbc') || dest.toLowerCase().startsWith('lntb');
+        if (isInvoice && !amountSats) {
+            amountSats = decodeBolt11Amount(dest);
+        }
+
+        // Fill in destination
+        destInput.value = dest;
+        destInput.dispatchEvent(new Event('input'));
+
+        // Fill in amount
+        if (amountSats && amountSats > 0) {
+            var unitSel = document.getElementById('send-unit');
+            unitSel.value = 'sats';
+            amountInput.value = amountSats;
+            if (isInvoice) {
+                amountInput.disabled = true;
+            } else {
+                amountInput.disabled = false;
+            }
+            updateSendConversion();
+        }
+    }
+
+    // --- Send ---
+    var destInput = document.getElementById('send-dest');
+    var amountInput = document.getElementById('send-amount');
+    var destHint = document.getElementById('dest-hint');
+
+    destInput.addEventListener('input', function() {
+        var v = destInput.value.trim().toLowerCase();
+        if (v.startsWith('lnbc') || v.startsWith('lntb') || v.startsWith('lntbs')) {
+            var invoiceSats = decodeBolt11Amount(v);
+            if (invoiceSats) {
+                destHint.textContent = '⚡ Lightning invoice — ' + invoiceSats.toLocaleString() + ' sats';
+                amountInput.value = invoiceSats;
+                amountInput.disabled = true;
+                document.getElementById('send-unit').value = 'sats';
+                updateSendConversion();
+            } else {
+                destHint.textContent = '⚡ Lightning invoice (no amount — zero-amount invoice)';
+                amountInput.disabled = false;
+                amountInput.placeholder = '0';
+            }
+            destHint.style.color = '#f7931a';
+        } else if (v.includes('@') && v.includes('.')) {
+            destHint.textContent = '⚡ Lightning address';
+            destHint.style.color = '#f7931a';
+            amountInput.disabled = false;
+            amountInput.placeholder = '0';
+        } else if (v.startsWith('bc1') || v.startsWith('1') || v.startsWith('3')) {
+            destHint.textContent = '🔗 On-chain bitcoin address';
+            destHint.style.color = '#f7931a';
+            amountInput.disabled = false;
+            amountInput.placeholder = '0';
+        } else {
+            destHint.textContent = '';
+            amountInput.disabled = false;
+            amountInput.placeholder = '0';
+        }
+    });
+
+    var pendingSendId = null;
+    var nfcReader = null;
+    var nfcAbortController = null;
+
+    function submitSend() {
+        var dest = destInput.value.trim();
+        var amount = parseFloat(amountInput.value) || 0;
+        var unit = document.getElementById('send-unit').value;
+        var btn = document.getElementById('send-btn');
+
+        if (!dest) { showResult('error', 'Enter a destination.'); return; }
+
+        var isInvoice = dest.startsWith('lnbc') || dest.startsWith('lntb') || dest.startsWith('lntbs');
+        if (!isInvoice && amount <= 0) {
+            showResult('error', 'Enter an amount.');
+            return;
+        }
+
+        // Convert fiat to sats if needed
+        var amountSats;
+        if (isInvoice) {
+            amountSats = null; // from invoice
+        } else if (unit === 'sats') {
+            amountSats = Math.round(amount);
+        } else {
+            amountSats = fiatToSats(amount, unit);
+            if (!amountSats) { showResult('error', 'Price unavailable for ' + unit); return; }
+        }
+
+        btn.disabled = true;
+        btn.textContent = 'Validating...';
+        document.getElementById('send-result').style.display = 'none';
+
+        var body = { destination: dest };
+        if (amountSats) body.amount_sats = amountSats;
+
+        fetch('/wallet/send/', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify(body),
+        })
+        .then(function(r) { return r.json().then(function(d) { return { ok: r.ok, data: d }; }); })
+        .then(function(res) {
+            if (res.ok && res.data.pending_id) {
+                pendingSendId = res.data.pending_id;
+                btn.textContent = '🔑 Tap card to confirm...';
+                showResult('success', '⏳ Tap your bolt card to confirm ' + res.data.amount_sats + ' sats payment.');
+                startNfcScan();
+            } else {
+                btn.disabled = false;
+                btn.textContent = 'Send Payment';
+                showResult('error', '❌ ' + (res.data.error || 'Failed.'));
+            }
+        })
+        .catch(function() {
+            btn.disabled = false;
+            btn.textContent = 'Send Payment';
+            showResult('error', '❌ Network error.');
+        });
+    }
+
+    function startNfcScan() {
+        // Try Web NFC API first (Android Chrome)
+        if ('NDEFReader' in window) {
+            nfcAbortController = new AbortController();
+            nfcReader = new NDEFReader();
+            nfcReader.scan({ signal: nfcAbortController.signal }).then(function() {
+                nfcReader.onreading = function(event) {
+                    for (var rec of event.message.records) {
+                        if (rec.recordType === 'url' || rec.recordType === 'absolute-url') {
+                            var decoder = new TextDecoder();
+                            var url = decoder.decode(rec.data);
+                            processNfcUrl(url);
+                            return;
+                        }
+                    }
+                    showResult('error', '❌ Could not read NFC URL from card.');
+                };
+            }).catch(function(e) {
+                // NFC not available or permission denied — show manual input
+                showManualTapInput();
+            });
+        } else {
+            showManualTapInput();
+        }
+    }
+
+    function showManualTapInput() {
+        var el = document.getElementById('send-result');
+        el.className = 'send-result success';
+        el.innerHTML = '⏳ Paste your bolt card tap URL to confirm:<br><br>'
+            + '<input type="text" id="manual-tap-url" placeholder="lnurlw://your-server.com/boltcard/scan/...?p=...&c=..." '
+            + 'style="width:100%;padding:0.5em;background:#1a1a2e;border:1px solid #333;border-radius:4px;color:#eee;font-family:monospace;font-size:0.85em;box-sizing:border-box;">'
+            + '<br><br><button class="btn" onclick="manualConfirm()" style="width:100%;">Confirm</button>'
+            + '&nbsp;<button class="btn" onclick="cancelSend()" style="background:#555;width:100%;margin-top:0.5em;">Cancel</button>';
+        el.style.display = 'block';
+    }
+
+    function manualConfirm() {
+        var url = document.getElementById('manual-tap-url').value.trim();
+        if (!url) { return; }
+        // Normalize lnurlw:// to https://
+        url = url.replace('lnurlw://', 'https://');
+        processNfcUrl(url);
+    }
+
+    function processNfcUrl(url) {
+        // Parse: https://domain/boltcard/scan/<external_id>/<card_secret>/?p=...&c=...
+        if (nfcAbortController) { nfcAbortController.abort(); nfcAbortController = null; }
+
+        url = url.replace('lnurlw://', 'https://');
+
+        try {
+            var parsed = new URL(url);
+            var pathParts = parsed.pathname.replace(/\/+$/, '').split('/');
+            // Expected: ['', 'boltcard', 'scan', '<external_id>', '<card_secret>']
+            var scanIdx = pathParts.indexOf('scan');
+            if (scanIdx < 0 || scanIdx + 2 >= pathParts.length) throw 'bad path';
+
+            var external_id = pathParts[scanIdx + 1];
+            var card_secret = pathParts[scanIdx + 2];
+            var p = parsed.searchParams.get('p') || '';
+            var c = parsed.searchParams.get('c') || '';
+
+            if (!external_id || !card_secret || !p || !c) throw 'missing params';
+
+            confirmSend(external_id, card_secret, p, c);
+        } catch(e) {
+            showResult('error', '❌ Could not parse card tap URL. Make sure it contains /boltcard/scan/...?p=...&c=...');
+            var btn = document.getElementById('send-btn');
+            btn.disabled = false;
+            btn.textContent = 'Send Payment';
+        }
+    }
+
+    function confirmSend(external_id, card_secret, p, c) {
+        var btn = document.getElementById('send-btn');
+        btn.textContent = 'Confirming...';
+
+        fetch('/wallet/send/', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+                pending_id: pendingSendId,
+                external_id: external_id,
+                card_secret: card_secret,
+                p: p,
+                c: c,
+            }),
+        })
+        .then(function(r) { return r.json().then(function(d) { return { ok: r.ok, data: d }; }); })
+        .then(function(res) {
+            btn.disabled = false;
+            btn.textContent = 'Send Payment';
+            pendingSendId = null;
+            if (res.ok) {
+                showResult('success', '✅ ' + (res.data.message || 'Payment sent!'));
+                destInput.value = '';
+                amountInput.value = '';
+                destHint.textContent = '';
+            } else {
+                showResult('error', '❌ ' + (res.data.error || 'Confirmation failed.'));
+            }
+        })
+        .catch(function() {
+            btn.disabled = false;
+            btn.textContent = 'Send Payment';
+            showResult('error', '❌ Network error.');
+        });
+    }
+
+    function cancelSend() {
+        pendingSendId = null;
+        if (nfcAbortController) { nfcAbortController.abort(); nfcAbortController = null; }
+        var btn = document.getElementById('send-btn');
+        btn.disabled = false;
+        btn.textContent = 'Send Payment';
+        document.getElementById('send-result').style.display = 'none';
+    }
+    // --- Recurring Payments ---
+    var rpDestInput = document.getElementById('rp-dest');
+    var rpDestHint = document.getElementById('rp-dest-hint');
+
+    rpDestInput.addEventListener('input', function() {
+        var v = rpDestInput.value.trim();
+        if (v.startsWith('lnbc') || v.startsWith('lntb') || v.startsWith('lntbs')) {
+            rpDestHint.textContent = '❌ Invoices expire — use a lightning address instead';
+            rpDestHint.style.color = '#f87171';
+        } else if (v.includes('@') && v.includes('.')) {
+            rpDestHint.textContent = '⚡ Lightning address';
+            rpDestHint.style.color = '#f7931a';
+        } else if (v.startsWith('bc1') || v.startsWith('1') || v.startsWith('3')) {
+            rpDestHint.textContent = '🔗 On-chain bitcoin address';
+            rpDestHint.style.color = '#f7931a';
+        } else {
+            rpDestHint.textContent = '';
+        }
+    });
+
+    var pendingRpId = null;
+
+    function createRecurring() {
+        var dest = rpDestInput.value.trim();
+        var amount = parseFloat(document.getElementById('rp-amount').value) || 0;
+        var unit = document.getElementById('rp-unit').value;
+        var freq = document.getElementById('rp-frequency').value;
+        var desc = document.getElementById('rp-desc').value.trim();
+        var btn = document.getElementById('rp-create-btn');
+
+        if (!dest) { showResult('error', 'Enter a destination.', 'rp-result'); return; }
+        if (amount <= 0) { showResult('error', 'Enter an amount.', 'rp-result'); return; }
+
+        btn.disabled = true;
+        btn.textContent = 'Validating...';
+        document.getElementById('rp-result').style.display = 'none';
+
+        var startDate = document.getElementById('rp-start-date').value;
+        var endDate = document.getElementById('rp-end-date').value;
+
+        var body = { destination: dest, frequency: freq, description: desc };
+        if (unit === 'sats') {
+            body.amount_sats = Math.round(amount);
+        } else {
+            body.amount_fiat = amount;
+            body.currency = unit;
+        }
+        if (startDate) body.start_date = startDate;
+        if (endDate) body.end_date = endDate;
+
+        fetch('/wallet/recurring/create/', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify(body),
+        })
+        .then(function(r) { return r.json().then(function(d) { return { ok: r.ok, data: d }; }); })
+        .then(function(res) {
+            if (res.ok && res.data.pending_id) {
+                pendingRpId = res.data.pending_id;
+                btn.textContent = '🔑 Tap card to confirm...';
+                showResult('success', '⏳ Tap your bolt card to authorize: ' + res.data.summary + ' to ' + res.data.destination, 'rp-result');
+                startRpNfcScan();
+            } else {
+                btn.disabled = false;
+                btn.textContent = 'Create Recurring Payment';
+                showResult('error', '❌ ' + (res.data.error || 'Failed.'), 'rp-result');
+            }
+        })
+        .catch(function() {
+            btn.disabled = false;
+            btn.textContent = 'Create Recurring Payment';
+            showResult('error', '❌ Network error.', 'rp-result');
+        });
+    }
+
+    function startRpNfcScan() {
+        if ('NDEFReader' in window) {
+            var btn = document.getElementById('rp-create-btn');
+            var nfcCtrl = new AbortController();
+            btn._rpNfcCtrl = nfcCtrl;
+
+            var reader = new NDEFReader();
+            reader.scan({ signal: nfcCtrl.signal }).then(function() {
+                reader.onreading = function(event) {
+                    nfcCtrl.abort();
+                    for (var rec of event.message.records) {
+                        if (rec.recordType === 'url' || rec.recordType === 'absolute-url') {
+                            var url = new TextDecoder().decode(rec.data);
+                            confirmRecurringWithUrl(url);
+                            return;
+                        }
+                    }
+                    showResult('error', 'Could not read NFC URL.', 'rp-result');
+                    resetRpBtn();
+                };
+            }).catch(function() {
+                showRpManualInput();
+            });
+        } else {
+            showRpManualInput();
+        }
+    }
+
+    function showRpManualInput() {
+        var el = document.getElementById('rp-result');
+        el.className = 'send-result success';
+        el.innerHTML = '⏳ Paste your bolt card tap URL to confirm:<br><br>'
+            + '<input type="text" id="rp-manual-url" placeholder="lnurlw://your-server.com/boltcard/scan/...?p=...&c=..." '
+            + 'style="width:100%;padding:0.5em;background:#1a1a2e;border:1px solid #333;border-radius:4px;color:#eee;font-family:monospace;font-size:0.85em;box-sizing:border-box;">'
+            + '<br><br><button class="btn" onclick="rpManualConfirm()" style="width:100%;">Confirm</button>'
+            + '&nbsp;<button class="btn" onclick="cancelRp()" style="background:#555;width:100%;margin-top:0.5em;">Cancel</button>';
+        el.style.display = 'block';
+    }
+
+    function rpManualConfirm() {
+        var url = document.getElementById('rp-manual-url').value.trim();
+        if (!url) return;
+        confirmRecurringWithUrl(url);
+    }
+
+    function confirmRecurringWithUrl(url) {
+        url = url.replace('lnurlw://', 'https://').replace('LNURLW://', 'https://');
+        try {
+            var parsed = new URL(url);
+            var pathParts = parsed.pathname.replace(/\/+$/, '').split('/');
+            var scanIdx = pathParts.indexOf('scan');
+            if (scanIdx < 0 || scanIdx + 2 >= pathParts.length) throw 'bad path';
+
+            var external_id = pathParts[scanIdx + 1];
+            var card_secret = pathParts[scanIdx + 2];
+            var p = parsed.searchParams.get('p') || '';
+            var c = parsed.searchParams.get('c') || '';
+
+            if (!external_id || !card_secret || !p || !c) throw 'missing params';
+
+            var btn = document.getElementById('rp-create-btn');
+            btn.textContent = 'Confirming...';
+
+            fetch('/wallet/recurring/create/', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({
+                    pending_id: pendingRpId,
+                    external_id: external_id,
+                    card_secret: card_secret,
+                    p: p,
+                    c: c,
+                }),
+            })
+            .then(function(r) { return r.json().then(function(d) { return { ok: r.ok, data: d }; }); })
+            .then(function(res) {
+                resetRpBtn();
+                pendingRpId = null;
+                if (res.ok) {
+                    showResult('success', '✅ ' + (res.data.message || 'Created!'), 'rp-result');
+                    rpDestInput.value = '';
+                    document.getElementById('rp-amount').value = '';
+                    document.getElementById('rp-desc').value = '';
+                    document.getElementById('rp-start-date').value = '';
+                    document.getElementById('rp-end-date').value = '';
+                    rpDestHint.textContent = '';
+                    loadRecurring();
+                } else {
+                    showResult('error', '❌ ' + (res.data.error || 'Confirmation failed.'), 'rp-result');
+                }
+            })
+            .catch(function() {
+                resetRpBtn();
+                showResult('error', '❌ Network error.', 'rp-result');
+            });
+        } catch(e) {
+            showResult('error', '❌ Could not parse card tap URL.', 'rp-result');
+            resetRpBtn();
+        }
+    }
+
+    function cancelRp() {
+        pendingRpId = null;
+        var btn = document.getElementById('rp-create-btn');
+        if (btn._rpNfcCtrl) { btn._rpNfcCtrl.abort(); btn._rpNfcCtrl = null; }
+        resetRpBtn();
+        document.getElementById('rp-result').style.display = 'none';
+    }
+
+    function resetRpBtn() {
+        var btn = document.getElementById('rp-create-btn');
+        btn.disabled = false;
+        btn.textContent = 'Create Recurring Payment';
+    }
+
+    function loadRecurring() {
+        fetch('/wallet/recurring/')
+        .then(function(r) { return r.json(); })
+        .then(function(data) {
+            var list = document.getElementById('rp-list');
+            var items = data.recurring || [];
+
+            var active = items.filter(function(rp) { return !rp.deactivated_at; });
+            var inactive = items.filter(function(rp) { return rp.deactivated_at; });
+
+            if (active.length === 0 && inactive.length === 0) {
+                list.innerHTML = '<p style="color:#666;">No recurring payments set up.</p>';
+                return;
+            }
+
+            var html = '';
+            active.forEach(function(rp) { html += renderRpCard(rp, true); });
+
+            if (inactive.length > 0) {
+                html += '<h4 style="color:#666;margin-top:1.5em;">Deleted / Expired</h4>';
+                inactive.forEach(function(rp) { html += renderRpCard(rp, false); });
+            }
+
+            list.innerHTML = html;
+        })
+        .catch(function() {
+            document.getElementById('rp-list').innerHTML = '<p style="color:#f87171;">Failed to load.</p>';
+        });
+    }
+
+    function renderRpCard(rp, showActions) {
+        var statusClass = rp.is_active ? 'enabled' : 'disabled';
+        var statusText = rp.is_active ? 'active' : (rp.deactivated_at ? 'deleted' : 'paused');
+        var nextDate = rp.next_payment ? new Date(rp.next_payment).toLocaleDateString() : '—';
+        var errorHtml = rp.last_error ? '<div style="color:#f87171;font-size:0.8em;margin-top:0.3em;">⚠️ ' + rp.last_error + '</div>' : '';
+        var amountLabel = rp.is_fiat ? rp.amount_fiat + ' ' + rp.amount_currency : rp.amount_sats + ' sats';
+        var opacity = showActions ? '1' : '0.5';
+
+        var html = '<div style="background:#16213e;padding:1em;margin:0.5em 0;border-radius:8px;opacity:' + opacity + ';">'
+            + '<div style="display:flex;justify-content:space-between;align-items:center;">'
+            + '<div>'
+            + '<strong>' + amountLabel + '</strong> ' + rp.frequency
+            + '<span class="status ' + statusClass + '" style="margin-left:0.5em;font-size:0.8em;padding:2px 8px;border-radius:4px;">' + statusText + '</span>'
+            + '<br><small style="color:#888;word-break:break-all;">' + rp.destination + '</small>'
+            + (rp.description ? '<br><small style="color:#aaa;">' + rp.description + '</small>' : '')
+            + (showActions ? '<br><small style="color:#666;">Next: ' + nextDate
+                + (rp.end_date ? ' · Ends: ' + new Date(rp.end_date).toLocaleDateString() : '')
+                + '</small>' : '')
+            + errorHtml
+            + '</div>';
+
+        html += '<div style="display:flex;gap:0.3em;flex-direction:column;">';
+        html += '<button class="btn" style="font-size:0.8em;padding:0.3em 0.7em;background:#16213e;border:1px solid #333;color:#888;" onclick="toggleRpHistory(' + rp.id + ')">History</button>';
+        if (showActions) {
+            html += '<button class="btn" style="font-size:0.8em;padding:0.3em 0.7em;" onclick="toggleRecurring(' + rp.id + ')">' + (rp.is_active ? 'Pause' : 'Resume') + '</button>'
+                + '<button class="btn" style="font-size:0.8em;padding:0.3em 0.7em;background:#e74c3c;" onclick="deleteRecurring(' + rp.id + ')">Delete</button>';
+        }
+        html += '</div>';
+
+        html += '</div>'
+            + '<div id="rp-history-' + rp.id + '" style="display:none;margin-top:0.5em;border-top:1px solid #333;padding-top:0.5em;"></div>'
+            + '</div>';
+        return html;
+    }
+
+    function toggleRpHistory(id) {
+        var el = document.getElementById('rp-history-' + id);
+        if (el.style.display !== 'none') {
+            el.style.display = 'none';
+            return;
+        }
+        el.style.display = 'block';
+        el.innerHTML = '<small style="color:#666;">Loading...</small>';
+
+        fetch('/wallet/recurring/' + id + '/history/')
+        .then(function(r) { return r.json(); })
+        .then(function(data) {
+            var execs = data.executions || [];
+            if (execs.length === 0) {
+                el.innerHTML = '<small style="color:#666;">No executions yet.</small>';
+                return;
+            }
+            var html = '<table style="width:100%;font-size:0.8em;">'
+                + '<tr><th style="color:#666;">Date</th><th style="color:#666;">Amount</th><th style="color:#666;">Status</th></tr>';
+            execs.forEach(function(ex) {
+                var date = new Date(ex.created_at).toLocaleDateString();
+                var amt = ex.amount_fiat ? ex.amount_fiat + ' ' + ex.amount_currency + ' (' + ex.amount_sats + ' sat)' : ex.amount_sats + ' sats';
+                var statusColor = ex.status === 'success' ? '#2d6a4f' : '#e74c3c';
+                var statusIcon = ex.status === 'success' ? '✓' : '✗';
+                html += '<tr><td>' + date + '</td><td class="sats">' + amt + '</td>'
+                    + '<td style="color:' + statusColor + ';">' + statusIcon + ' ' + ex.status + '</td></tr>';
+                if (ex.error) {
+                    html += '<tr><td colspan="3" style="color:#f87171;font-size:0.9em;padding-left:1em;">↳ ' + ex.error + '</td></tr>';
+                }
+            });
+            html += '</table>';
+            el.innerHTML = html;
+        })
+        .catch(function() {
+            el.innerHTML = '<small style="color:#f87171;">Failed to load history.</small>';
+        });
+    }
+
+    function toggleRecurring(id) {
+        fetch('/wallet/recurring/' + id + '/toggle/', { method: 'POST' })
+        .then(function() { loadRecurring(); });
+    }
+
+    function deleteRecurring(id) {
+        if (!confirm('Delete this recurring payment?')) return;
+        fetch('/wallet/recurring/' + id + '/delete/', { method: 'POST' })
+        .then(function() { loadRecurring(); });
+    }
+
+    // Load recurring list when send tab is viewed
+    var rpLoaded = false;
+    document.querySelectorAll('.sub-toggle[data-group="send"] button').forEach(function(btn) {
+        btn.addEventListener('click', function() {
+            if (btn.dataset.panel === 'send-recurring' && !rpLoaded) {
+                rpLoaded = true;
+                loadRecurring();
+            }
+        });
+    });
+
+    // --- Settings ---
+    function saveSettings() {
+        var primary = document.getElementById('setting-primary').value;
+        var secondary = document.getElementById('setting-secondary').value;
+        var btn = document.getElementById('settings-save-btn');
+        btn.disabled = true;
+        btn.textContent = 'Saving...';
+
+        fetch('/wallet/settings/', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ primary_currency: primary, secondary_currency: secondary }),
+        })
+        .then(function(r) { return r.json().then(function(d) { return { ok: r.ok, data: d }; }); })
+        .then(function(res) {
+            btn.disabled = false;
+            btn.textContent = 'Save Settings';
+            if (res.ok) {
+                showResult('success', '✅ ' + (res.data.message || 'Saved!'), 'settings-result');
+                // Reload page to reflect new currency
+                setTimeout(function() { location.reload(); }, 800);
+            } else {
+                showResult('error', '❌ ' + (res.data.error || 'Failed.'), 'settings-result');
+            }
+        })
+        .catch(function() {
+            btn.disabled = false;
+            btn.textContent = 'Save Settings';
+            showResult('error', '❌ Network error.', 'settings-result');
+        });
+    }
+    {% endif %}
+    </script>
+    <p style="text-align:center; color:#333; font-size:0.7em; margin-top:3em; padding:1em 0;">⚡ BoltPocket</p>
+</body>
+</html>

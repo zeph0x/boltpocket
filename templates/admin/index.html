@@ -1,0 +1,17 @@
+{% extends "admin/index.html" %}
+
+{% block content %}
+<div style="margin-bottom: 2em; padding: 1em; background: #f0f7ff; border: 1px solid #b3d7ff; border-radius: 8px;">
+    <h2 style="margin-top: 0;">⚡ Quick Links</h2>
+    <a href="{% url 'admin-node-stats' %}" style="display: inline-block; padding: 0.5em 1em; background: #007bff; color: #fff; text-decoration: none; border-radius: 4px; font-weight: bold; margin-right: 0.5em;">
+        📊 Node Stats &amp; Liquidity
+    </a>
+    <a href="{% url 'admin-accounting' %}" style="display: inline-block; padding: 0.5em 1em; background: #6f42c1; color: #fff; text-decoration: none; border-radius: 4px; font-weight: bold; margin-right: 0.5em;">
+        📒 Accounting
+    </a>
+    <a href="{% url 'admin-generate-wallets' %}" style="display: inline-block; padding: 0.5em 1em; background: #28a745; color: #fff; text-decoration: none; border-radius: 4px; font-weight: bold; margin-right: 0.5em;">
+        🃏 Generate Wallets
+    </a>
+</div>
+{{ block.super }}
+{% endblock %}

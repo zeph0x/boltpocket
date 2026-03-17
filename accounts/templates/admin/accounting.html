@@ -1,0 +1,178 @@
+{% extends "admin/base_site.html" %}
+{% load i18n %}
+
+{% block title %}Accounting{% endblock %}
+{% block content_title %}<h1>📒 Accounting</h1>{% endblock %}
+
+{% block extrastyle %}
+<style>
+    .stats-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(180px, 1fr)); gap: 1em; margin: 1.5em 0; }
+    .stat-card { background: #f8f9fa; border: 1px solid #dee2e6; border-radius: 8px; padding: 1em; }
+    .stat-card .label { font-size: 0.85em; color: #666; margin-bottom: 0.3em; }
+    .stat-card .value { font-size: 1.4em; font-weight: bold; font-family: monospace; }
+    .stat-card .sub { font-size: 0.8em; color: #888; }
+    .stat-card.ok { border-color: #28a745; background: #f0fff4; }
+    .stat-card.warn { border-color: #ffc107; background: #fff8e1; }
+    .stat-card.danger { border-color: #dc3545; background: #fff5f5; }
+
+    table.accounting { width: 100%; border-collapse: collapse; margin: 1em 0; font-size: 0.9em; }
+    table.accounting th { background: #f8f9fa; text-align: left; padding: 0.6em 0.8em; border-bottom: 2px solid #dee2e6; font-size: 0.85em; color: #555; }
+    table.accounting td { padding: 0.5em 0.8em; border-bottom: 1px solid #eee; }
+    table.accounting tr:hover { background: #f8f9fa; }
+    .num { text-align: right; font-family: monospace; }
+    .pos { color: #28a745; }
+    .neg { color: #dc3545; }
+    .zero { color: #888; }
+    .mismatch { background: #fff5f5 !important; }
+    .badge { display: inline-block; padding: 2px 6px; border-radius: 3px; font-size: 0.8em; font-weight: bold; }
+    .badge-ok { background: #d4edda; color: #155724; }
+    .badge-warn { background: #fff3cd; color: #856404; }
+    .badge-danger { background: #f8d7da; color: #721c24; }
+    .badge-info { background: #cce5ff; color: #004085; }
+    .section { margin: 2em 0; }
+    .small { font-size: 0.8em; color: #888; }
+</style>
+{% endblock %}
+
+{% block content %}
+
+<!-- Overview -->
+<div class="stats-grid">
+    <div class="stat-card {% if total_balance_sats == 0 %}ok{% elif total_balance_sats > 0 %}warn{% else %}danger{% endif %}">
+        <div class="label">Total Balance (all accounts)</div>
+        <div class="value">{{ total_balance_sats }} sat</div>
+        <div class="sub">Should be 0 (double-entry)</div>
+    </div>
+
+    <div class="stat-card {% if has_mismatches %}danger{% else %}ok{% endif %}">
+        <div class="label">Integrity</div>
+        <div class="value">{% if has_mismatches %}⚠️ Mismatch{% else %}✅ OK{% endif %}</div>
+        <div class="sub">Balance vs. transaction sum</div>
+    </div>
+
+    {% for status, count in otx_stats.items %}
+    <div class="stat-card {% if status == 'Pending Review' and count > 0 %}danger{% elif status == 'Pending' and count > 0 %}warn{% endif %}">
+        <div class="label">{{ status }}</div>
+        <div class="value">{{ count }}</div>
+        <div class="sub">Outgoing payments</div>
+    </div>
+    {% endfor %}
+
+    <div class="stat-card {% if recurring_errors > 0 %}warn{% endif %}">
+        <div class="label">Recurring Payments</div>
+        <div class="value">{{ recurring_active }}</div>
+        {% if recurring_errors %}<div class="sub" style="color:#dc3545;">{{ recurring_errors }} with errors</div>{% endif %}
+    </div>
+</div>
+
+<!-- Accounts Table -->
+<div class="section">
+    <h2>Accounts</h2>
+    <table class="accounting">
+        <thead>
+            <tr>
+                <th>ID</th>
+                <th>Type</th>
+                <th>Wallet</th>
+                <th class="num">Balance</th>
+                <th class="num">Computed</th>
+                <th class="num">Diff</th>
+                <th class="num">Inflow</th>
+                <th class="num">Outflow</th>
+                <th class="num">Txns</th>
+            </tr>
+        </thead>
+        <tbody>
+            {% for a in accounts %}
+            <tr {% if a.diff != 0 %}class="mismatch"{% endif %}>
+                <td>{{ a.id }}</td>
+                <td>{{ a.type }}</td>
+                <td>{% if a.wallet_id %}#{{ a.wallet_id }}{% else %}<span class="small">system</span>{% endif %}</td>
+                <td class="num {% if a.balance_sats > 0 %}pos{% elif a.balance_sats < 0 %}neg{% else %}zero{% endif %}">{{ a.balance_sats }}</td>
+                <td class="num {% if a.computed_sats > 0 %}pos{% elif a.computed_sats < 0 %}neg{% else %}zero{% endif %}">{{ a.computed_sats }}</td>
+                <td class="num">
+                    {% if a.diff != 0 %}
+                    <span class="badge badge-danger">{{ a.diff }}</span>
+                    {% else %}
+                    <span class="zero">0</span>
+                    {% endif %}
+                </td>
+                <td class="num">{{ a.inflow_sats }}</td>
+                <td class="num">{{ a.outflow_sats }}</td>
+                <td class="num">{{ a.tx_count }}</td>
+            </tr>
+            {% endfor %}
+            <tr style="font-weight:bold; border-top:2px solid #333;">
+                <td colspan="3">Total</td>
+                <td class="num {% if total_balance_sats == 0 %}pos{% else %}neg{% endif %}">{{ total_balance_sats }}</td>
+                <td colspan="5"></td>
+            </tr>
+        </tbody>
+    </table>
+</div>
+
+<!-- Transaction Breakdown -->
+<div class="section">
+    <h2>Transaction Breakdown</h2>
+    <table class="accounting">
+        <thead>
+            <tr>
+                <th>Type</th>
+                <th class="num">Count</th>
+                <th class="num">Total (sats)</th>
+            </tr>
+        </thead>
+        <tbody>
+            {% for t in tx_breakdown %}
+            <tr>
+                <td>{{ t.type }}</td>
+                <td class="num">{{ t.count }}</td>
+                <td class="num">{{ t.total_sats }}</td>
+            </tr>
+            {% endfor %}
+        </tbody>
+    </table>
+</div>
+
+<!-- Recent Outgoing Payments -->
+<div class="section">
+    <h2>Recent Outgoing Payments</h2>
+    <table class="accounting">
+        <thead>
+            <tr>
+                <th>ID</th>
+                <th>From</th>
+                <th>Type</th>
+                <th class="num">Amount</th>
+                <th>Status</th>
+                <th class="num">Fee Charged</th>
+                <th class="num">Fee Actual</th>
+                <th class="num">Fee Δ</th>
+                <th>Destination</th>
+            </tr>
+        </thead>
+        <tbody>
+            {% for o in recent_otx %}
+            <tr>
+                <td>{{ o.id }}</td>
+                <td>#{{ o.from_account }}</td>
+                <td>{{ o.dest_type }}</td>
+                <td class="num">{{ o.amount_sats }}</td>
+                <td>
+                    {% if o.status == 'Completed' %}<span class="badge badge-ok">{{ o.status }}</span>
+                    {% elif o.status == 'Pending' %}<span class="badge badge-warn">{{ o.status }}</span>
+                    {% elif o.status == 'Pending Review' %}<span class="badge badge-danger">{{ o.status }}</span>
+                    {% elif o.status == 'Failed' %}<span class="badge badge-danger">{{ o.status }}</span>
+                    {% else %}<span class="badge badge-info">{{ o.status }}</span>{% endif %}
+                </td>
+                <td class="num">{{ o.fee_charged }}</td>
+                <td class="num">{% if o.fee_actual != None %}{{ o.fee_actual }}{% else %}<span class="small">—</span>{% endif %}</td>
+                <td class="num">{% if o.fee_diff != None %}{% if o.fee_diff > 0 %}<span class="pos">+{{ o.fee_diff }}</span>{% else %}{{ o.fee_diff }}{% endif %}{% else %}<span class="small">—</span>{% endif %}</td>
+                <td><span class="small" title="{{ o.destination_short }}">{{ o.destination_short }}</span></td>
+            </tr>
+            {% endfor %}
+        </tbody>
+    </table>
+</div>
+
+{% endblock %}

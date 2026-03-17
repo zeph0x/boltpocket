@@ -1,0 +1,93 @@
+{% extends "admin/base_site.html" %}
+{% load i18n %}
+
+{% block title %}Create BoltCard Wallet{% endblock %}
+
+{% block content %}
+<style>
+    .wizard-form { max-width: 600px; margin: 0 auto; }
+    .wizard-form label { display: block; font-weight: bold; margin: 1em 0 0.3em; }
+    .wizard-form input { width: 100%; padding: 8px; border: 1px solid #ccc; border-radius: 4px; font-size: 1em; box-sizing: border-box; }
+    .wizard-form .help { font-size: 0.85em; color: #888; margin-top: 0.2em; }
+    .wizard-form .submit-row { margin-top: 2em; }
+    .result-box { background: #fff; border: 2px solid #e74c3c; padding: 1.5em; border-radius: 8px; margin: 1em 0; }
+    .result-box h3 { margin-top: 0; color: #e74c3c; }
+    .result-box code { display: block; background: #f5f5f5; padding: 8px; margin: 4px 0; border-radius: 3px; user-select: all; word-break: break-all; color: #333; font-size: 0.95em; }
+    .result-box .qr { text-align: center; margin: 1em 0; }
+    .section { margin-top: 1.5em; padding-top: 1em; border-top: 1px solid #ddd; }
+    .section h4 { color: #333; margin-bottom: 0.5em; }
+    .section p { color: #333; }
+</style>
+
+{% if result %}
+<div class="result-box">
+    <h3>⚠️ Save this now — shown once only!</h3>
+
+    <div class="section">
+        <h4>📱 Program the Card</h4>
+        <p>Scan this QR with the <strong>BoltCard NFC Card Creator</strong> app:</p>
+        <div class="qr">{{ result.qr_svg|safe }}</div>
+        <p><strong>Auth URL:</strong></p>
+        <code>{{ result.auth_url }}</code>
+    </div>
+
+    <div class="section">
+        <h4>🔑 Wallet Access</h4>
+        <p><strong>Wallet URL:</strong></p>
+        <code>{{ result.wallet_url }}</code>
+        <p><strong>Lightning Address:</strong></p>
+        <code>{{ result.ln_address }}</code>
+    </div>
+
+    <div class="section">
+        <h4>🔐 Card Keys (backup!)</h4>
+        <p><strong>Card Secret:</strong></p>
+        <code>{{ result.card_secret }}</code>
+        <p><strong>K0 (Auth):</strong></p>
+        <code>{{ result.k0 }}</code>
+        <p><strong>K1 (Meta):</strong></p>
+        <code>{{ result.k1 }}</code>
+        <p><strong>K2 (CMAC):</strong></p>
+        <code>{{ result.k2 }}</code>
+    </div>
+
+    <div class="section">
+        <h4>📋 Summary</h4>
+        <p>Wallet ID: <strong>{{ result.wallet_id }}</strong> · Card UID: <strong>{{ result.uid }}</strong></p>
+    </div>
+</div>
+
+<p><a href="{% url 'admin:wallets_boltcard_wizard' %}">Create another</a> · <a href="{% url 'admin:index' %}">Back to admin</a></p>
+
+{% else %}
+
+<form method="post" class="wizard-form">
+    {% csrf_token %}
+
+    {% if errors %}
+    <ul class="errorlist">
+        {% for error in errors %}
+        <li>{{ error }}</li>
+        {% endfor %}
+    </ul>
+    {% endif %}
+
+    <label for="uid">Card UID</label>
+    <input type="text" name="uid" id="uid" value="{{ uid|default:'' }}" placeholder="04:A1:B2:C3:D4:E5:F6" required>
+    <p class="help">7-byte UID from NXP TagInfo app. Colons/spaces/dashes are stripped automatically.</p>
+
+    <label for="tx_limit">Per-Transaction Limit (sats)</label>
+    <input type="number" name="tx_limit" id="tx_limit" value="{{ tx_limit|default:'0' }}" min="0">
+    <p class="help">0 = no limit</p>
+
+    <label for="daily_limit">Daily Limit (sats)</label>
+    <input type="number" name="daily_limit" id="daily_limit" value="{{ daily_limit|default:'0' }}" min="0">
+    <p class="help">0 = no limit</p>
+
+    <div class="submit-row">
+        <input type="submit" value="Create Wallet + Card" class="default">
+    </div>
+</form>
+{% endif %}
+
+{% endblock %}
