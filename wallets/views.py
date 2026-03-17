@@ -497,12 +497,6 @@ def _confirm_recurring(request, data):
 
     del request.session[session_key]
 
-    # If first payment is due now or in the past, fire the task immediately
-    from django.utils import timezone as tz
-    if next_payment <= tz.now():
-        from accounts.tasks_recurring import process_recurring_payments
-        process_recurring_payments.delay()
-
     if is_fiat:
         msg = f'Recurring payment created: {fiat_val} {currency} {frequency} to {pending["destination"]}'
     else:
