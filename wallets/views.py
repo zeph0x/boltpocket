@@ -237,11 +237,10 @@ def _confirm_send(request, data):
     """Verify card tap and execute a pending send."""
     from accounts.models import Account
     from decimal import Decimal
-    from .nxp424 import verify_tap
 
     pending_id = data.get('pending_id', '')
-    p = data.get('p', '').upper()
-    c = data.get('c', '').upper()
+    p = data.get('p', '')
+    c = data.get('c', '')
 
     if not p or not c:
         return JsonResponse({'error': 'Card tap required (missing p/c)'}, status=400)
@@ -252,58 +251,21 @@ def _confirm_send(request, data):
     if not pending:
         return JsonResponse({'error': 'Pending payment expired or not found'}, status=400)
 
-    # Find a card that belongs to this wallet and verify the tap
-    cards = BoltCard.objects.filter(wallet=request.wallet, is_enabled=True)
-    verified_card = None
-
-    for card in cards:
-        # We need the card_secret to decrypt keys — but it's not stored.
-        # Instead, try each card: decrypt p with k1 to get UID, check if it matches.
-        # But we can't decrypt without card_secret...
-        #
-        # Alternative: the tap URL contains the card_secret in the path.
-        # The frontend can extract it from the NFC URL and send it along.
-        pass
-
-    # Since we can't decrypt keys without card_secret, we need it from the client.
+    # Look up card
     card_secret = data.get('card_secret', '')
     external_id = data.get('external_id', '')
-
     if not card_secret or not external_id:
         return JsonResponse({'error': 'Card identification required (external_id, card_secret)'}, status=400)
 
     try:
-        card = BoltCard.objects.get(
-            external_id=external_id,
-            wallet=request.wallet,
-            is_enabled=True,
-        )
+        card = BoltCard.objects.get(external_id=external_id, wallet=request.wallet, is_enabled=True)
     except BoltCard.DoesNotExist:
         return JsonResponse({'error': 'Card not found or not linked to this wallet'}, status=403)
 
-    if not card.verify_card_secret(card_secret):
-        return JsonResponse({'error': 'Invalid card secret'}, status=403)
-
-    try:
-        k0, k1, k2 = card.decrypt_keys(card_secret)
-    except Exception:
-        return JsonResponse({'error': 'Key decryption failed'}, status=500)
-
-    success, counter_int, error, actual_uid = verify_tap(
-        p_hex=p,
-        c_hex=c,
-        k1_hex=k1,
-        k2_hex=k2,
-        expected_uid_hex=card.uid,
-    )
-
-    if not success:
-        return JsonResponse({'error': f'Card verification failed: {error}'}, status=403)
-
-    # Anti-replay: atomic check-and-update
-    rows = BoltCard.objects.filter(id=card.id, counter__lt=counter_int).update(counter=counter_int)
-    if rows == 0:
-        return JsonResponse({'error': 'Replay detected — tap card again'}, status=403)
+    # Verify tap
+    hit, error = card.authenticate_tap(card_secret, p, c)
+    if error:
+        return JsonResponse({'error': error}, status=403)
 
     # Execute the payment
     account = request.wallet.account
@@ -449,12 +411,11 @@ def _confirm_recurring(request, data):
     from accounts.models import RecurringPayment, DestinationType
     from decimal import Decimal
     from django.utils import timezone
-    from .nxp424 import verify_tap
     import datetime
 
     pending_id = data.get('pending_id', '')
-    p = data.get('p', '').upper()
-    c = data.get('c', '').upper()
+    p = data.get('p', '')
+    c = data.get('c', '')
 
     if not p or not c:
         return JsonResponse({'error': 'Card tap required (missing p/c)'}, status=400)
@@ -464,42 +425,21 @@ def _confirm_recurring(request, data):
     if not pending:
         return JsonResponse({'error': 'Pending recurring payment expired or not found'}, status=400)
 
-    # Verify card tap
+    # Look up card
     card_secret = data.get('card_secret', '')
     external_id = data.get('external_id', '')
-
     if not card_secret or not external_id:
         return JsonResponse({'error': 'Card identification required'}, status=400)
 
     try:
-        card = BoltCard.objects.get(
-            external_id=external_id,
-            wallet=request.wallet,
-            is_enabled=True,
-        )
+        card = BoltCard.objects.get(external_id=external_id, wallet=request.wallet, is_enabled=True)
     except BoltCard.DoesNotExist:
         return JsonResponse({'error': 'Card not found or not linked to this wallet'}, status=403)
 
-    if not card.verify_card_secret(card_secret):
-        return JsonResponse({'error': 'Invalid card secret'}, status=403)
-
-    try:
-        k0, k1, k2 = card.decrypt_keys(card_secret)
-    except Exception:
-        return JsonResponse({'error': 'Key decryption failed'}, status=500)
-
-    success, counter_int, error, actual_uid = verify_tap(
-        p_hex=p, c_hex=c, k1_hex=k1, k2_hex=k2,
-        expected_uid_hex=card.uid,
-    )
-
-    if not success:
-        return JsonResponse({'error': f'Card verification failed: {error}'}, status=403)
-
-    # Anti-replay: atomic check-and-update
-    rows = BoltCard.objects.filter(id=card.id, counter__lt=counter_int).update(counter=counter_int)
-    if rows == 0:
-        return JsonResponse({'error': 'Replay detected — tap card again'}, status=403)
+    # Verify tap
+    hit, error = card.authenticate_tap(card_secret, p, c)
+    if error:
+        return JsonResponse({'error': error}, status=403)
 
     # Create the recurring payment
     account = request.wallet.account

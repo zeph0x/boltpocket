@@ -16,7 +16,7 @@ from django.views.decorators.csrf import csrf_exempt
 from django.views.decorators.http import require_GET
 
 from .models import BoltCard, BoltCardHit
-from .nxp424 import verify_tap
+
 
 import re
 
@@ -104,49 +104,18 @@ def lnurl_scan(request, external_id, card_secret):
             'reason': 'Card is disabled',
         })
 
-    # Verify card_secret
-    if not card.verify_card_secret(card_secret):
-        return JsonResponse({
-            'status': 'ERROR',
-            'reason': 'Invalid card secret',
-        })
+    # Get client info
+    ip = request.META.get('HTTP_X_REAL_IP') or \
+         request.META.get('HTTP_X_FORWARDED_FOR', '').split(',')[0].strip() or \
+         request.META.get('REMOTE_ADDR')
+    user_agent = request.META.get('HTTP_USER_AGENT', '')
 
-    # Decrypt keys using card_secret
-    try:
-        k0, k1, k2 = card.decrypt_keys(card_secret)
-    except Exception:
-        return JsonResponse({
-            'status': 'ERROR',
-            'reason': 'Key decryption failed',
-        })
-
-    # Verify the tap (decrypt p, check CMAC c)
-    success, counter_int, error, actual_uid = verify_tap(
-        p_hex=p,
-        c_hex=c,
-        k1_hex=k1,
-        k2_hex=k2,
-        expected_uid_hex=card.uid,
-    )
-
-    if not success:
+    # Verify tap (also creates BoltCardHit)
+    hit, error = card.authenticate_tap(card_secret, p, c, ip=ip, user_agent=user_agent)
+    if error:
         return JsonResponse({
             'status': 'ERROR',
             'reason': error,
-        })
-
-    # First tap: store the real UID
-    if card.uid == '00000000000000' and actual_uid:
-        BoltCard.objects.filter(id=card.id).update(uid=actual_uid)
-        logger.info(f'BoltCard {card.id} first tap — UID set to {actual_uid}')
-
-    # Anti-replay: atomic check-and-update
-    old_counter = card.counter
-    rows = BoltCard.objects.filter(id=card.id, counter__lt=counter_int).update(counter=counter_int)
-    if rows == 0:
-        return JsonResponse({
-            'status': 'ERROR',
-            'reason': 'Replay detected — counter not increasing',
         })
 
     # Check daily limit
@@ -156,21 +125,6 @@ def lnurl_scan(request, external_id, card_secret):
             'status': 'ERROR',
             'reason': 'Daily limit reached',
         })
-
-    # Get client info
-    ip = request.META.get('HTTP_X_REAL_IP') or \
-         request.META.get('HTTP_X_FORWARDED_FOR', '').split(',')[0].strip() or \
-         request.META.get('REMOTE_ADDR')
-    user_agent = request.META.get('HTTP_USER_AGENT', '')
-
-    # Create hit record
-    hit = BoltCardHit.objects.create(
-        card=card,
-        ip=ip,
-        user_agent=user_agent,
-        old_counter=old_counter,
-        new_counter=counter_int,
-    )
 
     # Build callback URL
     callback = request.build_absolute_uri(f'/boltcard/callback/{hit.id}/')

@@ -287,6 +287,61 @@ class BoltCard(models.Model):
 
         return card, card_secret, k0, k1, k2
 
+    def authenticate_tap(self, card_secret, p, c, ip=None, user_agent=''):
+        """
+        Full card tap verification: secret check, key decryption, NXP424
+        SUN/CMAC verification, first-tap UID storage, atomic counter update,
+        and BoltCardHit logging.
+
+        Returns (hit, error_string).
+        On success: hit is a BoltCardHit instance, error is None.
+        On failure: hit is None, error is a string.
+        """
+        import logging
+        from .nxp424 import verify_tap
+        logger = logging.getLogger(__name__)
+
+        if not self.verify_card_secret(card_secret):
+            return None, 'Invalid card secret'
+
+        try:
+            k0, k1, k2 = self.decrypt_keys(card_secret)
+        except Exception:
+            return None, 'Key decryption failed'
+
+        success, counter_int, error, actual_uid = verify_tap(
+            p_hex=p.upper(),
+            c_hex=c.upper(),
+            k1_hex=k1,
+            k2_hex=k2,
+            expected_uid_hex=self.uid,
+        )
+
+        if not success:
+            return None, f'Card verification failed: {error}'
+
+        # First tap: store the real UID (replaces placeholder)
+        if self.uid == '00000000000000' and actual_uid:
+            BoltCard.objects.filter(id=self.id).update(uid=actual_uid)
+            logger.info(f'BoltCard {self.id} first tap — UID set to {actual_uid}')
+
+        # Anti-replay: atomic check-and-update
+        old_counter = self.counter
+        rows = BoltCard.objects.filter(id=self.id, counter__lt=counter_int).update(counter=counter_int)
+        if rows == 0:
+            return None, 'Replay detected — tap card again'
+
+        # Log the tap
+        hit = BoltCardHit.objects.create(
+            card=self,
+            ip=ip,
+            user_agent=user_agent,
+            old_counter=old_counter,
+            new_counter=counter_int,
+        )
+
+        return hit, None
+
     def reset_daily_spent(self):
         """Reset daily spent counter if it's a new day."""
         import datetime
