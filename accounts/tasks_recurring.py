@@ -25,7 +25,25 @@ CURRENCY_MAP = {
 def process_recurring_payments():
     """
     Find all active recurring payments that are due and execute them.
+    Acquires a Redis lock to prevent concurrent execution.
     """
+    import redis
+    r = redis.Redis(host='localhost', port=6379, db=0)
+    lock = r.lock('boltpocket:recurring_payments_lock', timeout=300)
+    if not lock.acquire(blocking=False):
+        logger.debug('Recurring payments task already running, skipping')
+        return
+
+    try:
+        _process_recurring_payments()
+    finally:
+        try:
+            lock.release()
+        except redis.exceptions.LockNotOwnedError:
+            pass
+
+
+def _process_recurring_payments():
     from accounts.models import RecurringPayment
 
     now = timezone.now()
