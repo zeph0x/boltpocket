@@ -148,7 +148,7 @@ CELERY_BEAT_SCHEDULE = {
     },
     'process-recurring-payments': {
         'task': 'accounts.tasks_recurring.process_recurring_payments',
-        'schedule': 3600.0,  # hourly — task only executes payments that are due
+        'schedule': 600.0,  # every 10 min — task only executes payments where next_payment <= now
     },
 }
 
