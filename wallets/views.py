@@ -129,7 +129,7 @@ def wallet_dashboard(request):
     incoming_endpoints = DepositEndpoint.objects.filter(account=account)
     incoming_pending = IncomingTransaction.objects.filter(
         address__in=incoming_endpoints,
-        transaction=None,
+        confirmed_at=None,
     ).order_by('-created_at')
 
     # Determine which fiat currency to use for conversions
