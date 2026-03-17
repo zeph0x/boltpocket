@@ -312,7 +312,7 @@ def _confirm_send(request, data):
     amount_btc = Decimal(pending['amount_sats']) / Decimal(100_000_000)
 
     try:
-        tx = account.send_to_destination(amount_btc, pending['destination'])
+        tx = account.send_to_destination(amount_btc, pending['destination'], card_verified=True)
     except Exception as e:
         return JsonResponse({'error': str(e)}, status=400)
 

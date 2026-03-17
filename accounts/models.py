@@ -408,7 +408,16 @@ class Account(models.Model):
             pass
         return None
 
-    def send_to_destination(self, amount, destination, urgent=True):
+    def send_to_destination(self, amount, destination, urgent=True, card_verified=False):
+        """
+        Send funds to an external destination.
+        card_verified=True must be explicitly passed — enforces that callers
+        have verified a card tap before moving user funds.
+        System callers (recurring payments, admin) must pass card_verified=True.
+        """
+        if self.account_type == AccountType.USER and not card_verified:
+            raise Exception("Card tap verification required for user account payments")
+
         # Normalize: LN invoices are case-insensitive, lowercase is canonical
         destination = destination.strip()
         d_lower = destination.lower()
