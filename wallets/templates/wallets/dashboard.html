@@ -958,8 +958,11 @@
     var amountInput = document.getElementById('send-amount');
     var destHint = document.getElementById('dest-hint');
 
+    var probeTimeout = null;
     destInput.addEventListener('input', function() {
         var v = destInput.value.trim().toLowerCase();
+        if (probeTimeout) { clearTimeout(probeTimeout); probeTimeout = null; }
+
         if (v.startsWith('lnbc') || v.startsWith('lntb') || v.startsWith('lntbs')) {
             var invoiceSats = decodeBolt11Amount(v);
             if (invoiceSats) {
@@ -974,9 +977,15 @@
                 amountInput.placeholder = '0';
             }
             destHint.style.color = '#f7931a';
-        } else if (v.includes('@') && v.includes('.')) {
-            destHint.textContent = '⚡ Lightning address';
+        } else if (v.startsWith('lnurl1') || v.startsWith('lnurlp://')) {
+            destHint.textContent = '🔗 LNURL — probing...';
             destHint.style.color = '#f7931a';
+            amountInput.disabled = true;
+            probeDestination(destInput.value.trim());
+        } else if (v.includes('@') && v.includes('.')) {
+            destHint.textContent = '⚡ Lightning address — probing...';
+            destHint.style.color = '#f7931a';
+            probeTimeout = setTimeout(function() { probeDestination(destInput.value.trim()); }, 500);
             amountInput.disabled = false;
             amountInput.placeholder = '0';
         } else if (v.startsWith('bc1') || v.startsWith('1') || v.startsWith('3')) {
@@ -990,6 +999,60 @@
             amountInput.placeholder = '0';
         }
     });
+
+    function probeDestination(dest) {
+        fetch('/wallet/probe/', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ destination: dest }),
+        })
+        .then(function(r) { return r.json().then(function(d) { return { ok: r.ok, data: d }; }); })
+        .then(function(res) {
+            if (!res.ok) {
+                destHint.textContent = '❌ ' + (res.data.error || 'Probe failed');
+                destHint.style.color = '#f44';
+                amountInput.disabled = false;
+                return;
+            }
+            var d = res.data;
+            if (d.type === 'lnurl_pay') {
+                var desc = d.description ? ' — ' + d.description : '';
+                if (d.fixed_sats) {
+                    destHint.textContent = '⚡ LNURL-pay' + desc + ' — ' + d.fixed_sats.toLocaleString() + ' sats';
+                    amountInput.value = d.fixed_sats;
+                    amountInput.disabled = true;
+                    document.getElementById('send-unit').value = 'sats';
+                    updateSendConversion();
+                } else {
+                    destHint.textContent = '⚡ LNURL-pay' + desc + ' (' + d.min_sats.toLocaleString() + '–' + d.max_sats.toLocaleString() + ' sats)';
+                    amountInput.disabled = false;
+                    amountInput.min = d.min_sats;
+                    amountInput.max = d.max_sats;
+                    amountInput.placeholder = d.min_sats;
+                }
+                destHint.style.color = '#f7931a';
+            } else if (d.type === 'ln_invoice') {
+                if (d.fixed_sats) {
+                    destHint.textContent = '⚡ Lightning invoice — ' + d.fixed_sats.toLocaleString() + ' sats';
+                    amountInput.value = d.fixed_sats;
+                    amountInput.disabled = true;
+                    document.getElementById('send-unit').value = 'sats';
+                    updateSendConversion();
+                }
+                destHint.style.color = '#f7931a';
+            } else {
+                // LN address without LNURL-pay probe (shouldn't happen, but fallback)
+                destHint.textContent = '⚡ Lightning address';
+                destHint.style.color = '#f7931a';
+                amountInput.disabled = false;
+            }
+        })
+        .catch(function() {
+            destHint.textContent = '❌ Probe failed (network error)';
+            destHint.style.color = '#f44';
+            amountInput.disabled = false;
+        });
+    }
 
     var pendingSendId = null;
     var nfcReader = null;

@@ -161,6 +161,181 @@ def wallet_dashboard(request):
 
 @csrf_exempt
 @wallet_required
+def wallet_probe_destination(request):
+    """
+    Probe a destination to determine type and amount constraints.
+    Handles: LN invoices, LN addresses, LNURL-pay (lnurl1...), on-chain addresses.
+    Returns: {type, min_sats, max_sats, fixed_amount, description}
+    """
+    if request.method != 'POST':
+        return JsonResponse({'error': 'POST required'}, status=405)
+
+    try:
+        data = json.loads(request.body)
+    except (json.JSONDecodeError, AttributeError):
+        return JsonResponse({'error': 'Invalid JSON'}, status=400)
+
+    destination = data.get('destination', '').strip()
+    if not destination:
+        return JsonResponse({'error': 'Destination required'}, status=400)
+
+    d = destination.lower()
+
+    # BOLT11 invoice
+    if d.startswith('lnbc') or d.startswith('lntb') or d.startswith('lntbs'):
+        from .views_boltcard import _decode_invoice_amount
+        amount_sats = _decode_invoice_amount(destination)
+        result = {'type': 'ln_invoice'}
+        if amount_sats:
+            result['fixed_sats'] = amount_sats
+        return JsonResponse(result)
+
+    # LNURL (bech32-encoded)
+    lnurl_url = None
+    if d.startswith('lnurl1'):
+        try:
+            lnurl_url = _decode_lnurl_bech32(d)
+        except Exception:
+            return JsonResponse({'error': 'Invalid LNURL'}, status=400)
+    elif d.startswith('lnurlp://'):
+        lnurl_url = destination.replace('lnurlp://', 'https://', 1)
+
+    # Lightning address → LNURL-pay URL
+    if not lnurl_url and '@' in destination and '.' in destination.split('@')[-1]:
+        local, domain = destination.split('@', 1)
+        lnurl_url = f'https://{domain}/.well-known/lnurlp/{local}'
+
+    # Probe LNURL-pay endpoint
+    if lnurl_url:
+        try:
+            import requests as http_requests
+            resp = http_requests.get(lnurl_url, timeout=10)
+            resp.raise_for_status()
+            lnurl_data = resp.json()
+
+            if lnurl_data.get('status') == 'ERROR':
+                return JsonResponse({'error': f'LNURL error: {lnurl_data.get("reason", "unknown")}'}, status=400)
+
+            tag = lnurl_data.get('tag')
+            if tag != 'payRequest':
+                return JsonResponse({'error': f'Unsupported LNURL tag: {tag}'}, status=400)
+
+            min_msats = lnurl_data.get('minSendable', 0)
+            max_msats = lnurl_data.get('maxSendable', 0)
+            min_sats = (min_msats + 999) // 1000  # ceil
+            max_sats = max_msats // 1000  # floor
+            metadata = lnurl_data.get('metadata', '')
+            callback = lnurl_data.get('callback', '')
+
+            # Parse description from metadata JSON
+            description = ''
+            try:
+                import json as json_mod
+                meta_list = json_mod.loads(metadata)
+                for entry in meta_list:
+                    if entry[0] == 'text/plain':
+                        description = entry[1]
+                        break
+            except Exception:
+                pass
+
+            result = {
+                'type': 'lnurl_pay',
+                'min_sats': min_sats,
+                'max_sats': max_sats,
+                'description': description,
+                'callback': callback,
+                'metadata': metadata,
+            }
+            if min_sats == max_sats:
+                result['fixed_sats'] = min_sats
+
+            return JsonResponse(result)
+        except Exception as e:
+            return JsonResponse({'error': f'LNURL probe failed: {str(e)}'}, status=400)
+
+    # On-chain address
+    if d.startswith('bc1') or d.startswith('1') or d.startswith('3'):
+        return JsonResponse({'type': 'onchain'})
+
+    return JsonResponse({'error': 'Unrecognized destination'}, status=400)
+
+
+def _decode_lnurl_bech32(lnurl_str):
+    """Decode a bech32-encoded LNURL string to a URL."""
+    lnurl_str = lnurl_str.lower()
+    # Remove lnurl prefix and decode bech32
+    hrp, data = _bech32_decode(lnurl_str)
+    if hrp != 'lnurl':
+        raise ValueError(f'Expected lnurl HRP, got {hrp}')
+    # Convert 5-bit groups to 8-bit bytes
+    decoded = _convertbits(data, 5, 8, False)
+    return bytes(decoded).decode('utf-8')
+
+
+def _bech32_decode(bech):
+    """Minimal bech32 decoder for LNURL."""
+    CHARSET = "qpzry9x8gf2tvdw0s3jn54khce6mua7l"
+    pos = bech.rfind('1')
+    if pos < 1:
+        raise ValueError('Invalid bech32')
+    hrp = bech[:pos]
+    data_part = bech[pos+1:]
+    # Decode characters to 5-bit values, strip 6-char checksum
+    values = [CHARSET.index(c) for c in data_part]
+    return hrp, values[:-6]
+
+
+def _convertbits(data, frombits, tobits, pad=True):
+    """General power-of-2 base conversion."""
+    acc = 0
+    bits = 0
+    ret = []
+    maxv = (1 << tobits) - 1
+    for value in data:
+        acc = (acc << frombits) | value
+        bits += frombits
+        while bits >= tobits:
+            bits -= tobits
+            ret.append((acc >> bits) & maxv)
+    if pad:
+        if bits:
+            ret.append((acc << (tobits - bits)) & maxv)
+    elif bits >= frombits or ((acc << (tobits - bits)) & maxv):
+        raise ValueError('Invalid padding')
+    return ret
+
+
+def _resolve_lnurl_pay_invoice(callback, amount_sats, metadata=''):
+    """
+    Call LNURL-pay callback with amount to get a BOLT11 invoice.
+    Returns (invoice_str, invoice_amount_sats).
+    invoice_amount_sats is None if amount can't be decoded.
+    """
+    import requests as http_requests
+    from .views_boltcard import _decode_invoice_amount
+
+    amount_msats = amount_sats * 1000
+    separator = '&' if '?' in callback else '?'
+    url = f'{callback}{separator}amount={amount_msats}'
+
+    resp = http_requests.get(url, timeout=10)
+    resp.raise_for_status()
+    data = resp.json()
+
+    if data.get('status') == 'ERROR':
+        raise Exception(data.get('reason', 'unknown error'))
+
+    invoice = data.get('pr')
+    if not invoice:
+        raise Exception('No invoice returned from LNURL callback')
+
+    invoice_amount_sats = _decode_invoice_amount(invoice)
+    return invoice, invoice_amount_sats
+
+
+@csrf_exempt
+@wallet_required
 def wallet_send(request):
     """
     API endpoint to send a payment. Two-step:
@@ -189,6 +364,28 @@ def wallet_send(request):
     from decimal import Decimal
 
     account = request.wallet.account
+
+    # Resolve LNURL-pay (lnurl1...) to callback URL before detection
+    d_lower = destination.lower()
+    lnurl_callback = None
+    lnurl_metadata = None
+    if d_lower.startswith('lnurl1'):
+        try:
+            lnurl_url = _decode_lnurl_bech32(d_lower)
+        except Exception:
+            return JsonResponse({'error': 'Invalid LNURL'}, status=400)
+        try:
+            import requests as http_requests
+            resp = http_requests.get(lnurl_url, timeout=10)
+            resp.raise_for_status()
+            lnurl_data = resp.json()
+            if lnurl_data.get('tag') != 'payRequest':
+                return JsonResponse({'error': f'Unsupported LNURL tag: {lnurl_data.get("tag")}'}, status=400)
+            lnurl_callback = lnurl_data.get('callback')
+            lnurl_metadata = lnurl_data.get('metadata', '')
+        except Exception as e:
+            return JsonResponse({'error': f'LNURL resolution failed: {str(e)}'}, status=400)
+
     dest_type = Account.detect_destination_type(destination)
 
     # Determine amount
@@ -205,6 +402,14 @@ def wallet_send(request):
         if not amount_sats or int(amount_sats) < 1:
             return JsonResponse({'error': 'Amount required'}, status=400)
         amount_sats = int(amount_sats)
+
+    elif lnurl_callback:
+        # LNURL-pay: amount required from user
+        if not amount_sats or int(amount_sats) < 1:
+            return JsonResponse({'error': 'Amount required'}, status=400)
+        amount_sats = int(amount_sats)
+        dest_type = DestinationType.LN_ADDRESS  # treat as LN for routing
+
     else:
         return JsonResponse({'error': 'Invalid destination'}, status=400)
 
@@ -218,11 +423,15 @@ def wallet_send(request):
     # Store pending send in session (expires with session, no DB needed)
     import secrets
     pending_id = secrets.token_hex(16)
-    request.session[f'pending_send_{pending_id}'] = {
+    pending_data = {
         'destination': destination,
         'amount_sats': int(amount_sats),
         'dest_type': dest_type,
     }
+    if lnurl_callback:
+        pending_data['lnurl_callback'] = lnurl_callback
+        pending_data['lnurl_metadata'] = lnurl_metadata
+    request.session[f'pending_send_{pending_id}'] = pending_data
 
     return JsonResponse({
         'ok': True,
@@ -269,10 +478,27 @@ def _confirm_send(request, data):
 
     # Execute the payment
     account = request.wallet.account
-    amount_btc = Decimal(pending['amount_sats']) / Decimal(100_000_000)
+    amount_sats = pending['amount_sats']
+    amount_btc = Decimal(amount_sats) / Decimal(100_000_000)
+    destination = pending['destination']
+
+    # Resolve LNURL-pay to invoice at payment time (avoids invoice expiry)
+    if pending.get('lnurl_callback'):
+        try:
+            destination, invoice_amount_sats = _resolve_lnurl_pay_invoice(
+                pending['lnurl_callback'], amount_sats, pending.get('lnurl_metadata', '')
+            )
+            # Verify invoice amount matches what user approved
+            if invoice_amount_sats and invoice_amount_sats != amount_sats:
+                del request.session[session_key]
+                return JsonResponse({
+                    'error': f'Invoice amount mismatch: expected {amount_sats} sats, got {invoice_amount_sats} sats'
+                }, status=400)
+        except Exception as e:
+            return JsonResponse({'error': f'LNURL payment failed: {str(e)}'}, status=400)
 
     try:
-        tx = account.send_to_destination(amount_btc, pending['destination'])
+        tx = account.send_to_destination(amount_btc, destination)
     except Exception as e:
         return JsonResponse({'error': str(e)}, status=400)
 

@@ -12,6 +12,7 @@ urlpatterns = [
 
     # Wallet send + receive + settings + price
     path('wallet/send/', views.wallet_send, name='wallet-send'),
+    path('wallet/probe/', views.wallet_probe_destination, name='wallet-probe'),
     path('wallet/receive/invoice/', views.wallet_receive_invoice, name='wallet-receive-invoice'),
     path('wallet/receive/charge-card/', views.wallet_charge_card, name='wallet-charge-card'),
     path('wallet/settings/', views.wallet_settings, name='wallet-settings'),

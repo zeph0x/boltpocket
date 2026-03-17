@@ -357,6 +357,8 @@ class Account(models.Model):
         d = destination.lower().strip()
         if d.startswith('lnbc') or d.startswith('lntb') or d.startswith('lntbs'):
             return DestinationType.LN_INVOICE
+        if d.startswith('lnurl1') or d.startswith('lnurlp://'):
+            return DestinationType.LN_ADDRESS  # resolved to invoice at payment time
         if '@' in destination and '.' in destination.split('@')[-1]:
             return DestinationType.LN_ADDRESS
         return DestinationType.ONCHAIN

@@ -81,6 +81,15 @@ def _resolve_ln_address(otx):
     if not invoice:
         raise Exception('No invoice returned from LNURL callback')
 
+    # Verify invoice amount matches what we requested
+    from wallets.views_boltcard import _decode_invoice_amount
+    invoice_amount_sats = _decode_invoice_amount(invoice)
+    expected_sats = int(otx.amount * 100_000_000)
+    if invoice_amount_sats and invoice_amount_sats != expected_sats:
+        raise Exception(
+            f'Invoice amount mismatch: expected {expected_sats} sats, got {invoice_amount_sats} sats'
+        )
+
     # Step 3: Update outgoing tx with the resolved invoice
     Outgoingtransaction.objects.filter(id=otx.id).update(
         destination=invoice,
