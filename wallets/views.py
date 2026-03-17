@@ -300,12 +300,10 @@ def _confirm_send(request, data):
     if not success:
         return JsonResponse({'error': f'Card verification failed: {error}'}, status=403)
 
-    # Anti-replay
-    if counter_int <= card.counter:
+    # Anti-replay: atomic check-and-update
+    rows = BoltCard.objects.filter(id=card.id, counter__lt=counter_int).update(counter=counter_int)
+    if rows == 0:
         return JsonResponse({'error': 'Replay detected — tap card again'}, status=403)
-
-    # Update card counter
-    BoltCard.objects.filter(id=card.id).update(counter=counter_int)
 
     # Execute the payment
     account = request.wallet.account
@@ -498,10 +496,10 @@ def _confirm_recurring(request, data):
     if not success:
         return JsonResponse({'error': f'Card verification failed: {error}'}, status=403)
 
-    if counter_int <= card.counter:
+    # Anti-replay: atomic check-and-update
+    rows = BoltCard.objects.filter(id=card.id, counter__lt=counter_int).update(counter=counter_int)
+    if rows == 0:
         return JsonResponse({'error': 'Replay detected — tap card again'}, status=403)
-
-    BoltCard.objects.filter(id=card.id).update(counter=counter_int)
 
     # Create the recurring payment
     account = request.wallet.account

@@ -140,17 +140,14 @@ def lnurl_scan(request, external_id, card_secret):
         BoltCard.objects.filter(id=card.id).update(uid=actual_uid)
         logger.info(f'BoltCard {card.id} first tap — UID set to {actual_uid}')
 
-    # Anti-replay: counter must strictly increase
-    if counter_int <= card.counter:
+    # Anti-replay: atomic check-and-update
+    old_counter = card.counter
+    rows = BoltCard.objects.filter(id=card.id, counter__lt=counter_int).update(counter=counter_int)
+    if rows == 0:
         return JsonResponse({
             'status': 'ERROR',
             'reason': 'Replay detected — counter not increasing',
         })
-
-    old_counter = card.counter
-
-    # Update counter
-    BoltCard.objects.filter(id=card.id).update(counter=counter_int)
 
     # Check daily limit
     card.reset_daily_spent()
