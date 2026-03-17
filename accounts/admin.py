@@ -18,6 +18,8 @@ class ReadOnlyAdmin(admin.ModelAdmin):
 
 class AssetAdmin(admin.ModelAdmin):
     list_display = ('ticker', 'description', 'outgoing_tx_fee_amount', 'ln_fee_floor', 'ln_fee_percentage')
+    readonly_fields = ('id', 'ticker', 'atomic_unit', 'base_unit', 'description', 'blockchain_fee_account', 'custody_billing_account', 'blockheight', 'scan_started_at')
+    fields = ('ticker', 'description', 'atomic_unit', 'base_unit', 'outgoing_tx_fee_amount', 'ln_fee_floor', 'ln_fee_percentage', 'blockchain_fee_account', 'custody_billing_account', 'blockheight', 'scan_started_at')
 
     def has_add_permission(self, request):
         return False
@@ -26,17 +28,9 @@ class AssetAdmin(admin.ModelAdmin):
         return False
 
 
-class AccountAdmin(admin.ModelAdmin):
+class AccountAdmin(ReadOnlyAdmin):
     list_display = ('id', 'account_type', 'balance', 'allow_negative', 'asset')
     list_filter = ('account_type', 'allow_negative')
-    readonly_fields = ('id', 'created_at', 'updated_at', 'balance', 'asset', 'account_type', 'accounting_id', 'fee_credit_account')
-    fields = ('id', 'created_at', 'updated_at', 'asset', 'account_type', 'balance', 'allow_negative', 'accounting_id', 'fee_credit_account')
-
-    def has_add_permission(self, request):
-        return False
-
-    def has_delete_permission(self, request, obj=None):
-        return False
 
 
 admin.site.register(Asset, AssetAdmin)
