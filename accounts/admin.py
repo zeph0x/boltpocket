@@ -6,16 +6,43 @@ admin.site.disable_action('delete_selected')
 
 
 class ReadOnlyAdmin(admin.ModelAdmin):
+    def has_add_permission(self, request):
+        return False
+
     def has_delete_permission(self, request, obj=None):
         return False
 
-    list_display_links = None
+    def has_change_permission(self, request, obj=None):
+        return False
 
 
-admin.site.register(Account, ReadOnlyAdmin)
-admin.site.register(Asset, ReadOnlyAdmin)
-admin.site.register(Transaction)
-admin.site.register(DepositEndpoint)
-admin.site.register(IncomingTransaction)
-admin.site.register(Outgoingtransaction)
-admin.site.register(RecurringPayment)
+class AssetAdmin(admin.ModelAdmin):
+    list_display = ('ticker', 'description', 'outgoing_tx_fee_amount', 'ln_fee_floor', 'ln_fee_percentage')
+
+    def has_add_permission(self, request):
+        return False
+
+    def has_delete_permission(self, request, obj=None):
+        return False
+
+
+class AccountAdmin(admin.ModelAdmin):
+    list_display = ('id', 'account_type', 'balance', 'allow_negative', 'asset')
+    list_filter = ('account_type', 'allow_negative')
+    readonly_fields = ('id', 'created_at', 'updated_at', 'balance', 'asset', 'account_type', 'accounting_id', 'fee_credit_account')
+    fields = ('id', 'created_at', 'updated_at', 'asset', 'account_type', 'balance', 'allow_negative', 'accounting_id', 'fee_credit_account')
+
+    def has_add_permission(self, request):
+        return False
+
+    def has_delete_permission(self, request, obj=None):
+        return False
+
+
+admin.site.register(Asset, AssetAdmin)
+admin.site.register(Account, AccountAdmin)
+admin.site.register(Transaction, ReadOnlyAdmin)
+admin.site.register(DepositEndpoint, ReadOnlyAdmin)
+admin.site.register(IncomingTransaction, ReadOnlyAdmin)
+admin.site.register(Outgoingtransaction, ReadOnlyAdmin)
+admin.site.register(RecurringPayment, ReadOnlyAdmin)
