@@ -6,22 +6,35 @@ from .models import SystemUser, Wallet, TxComment, BoltCard, BoltCardHit
 from accounts.models import Asset, Account
 
 
-admin.site.register(SystemUser)
-admin.site.register(TxComment)
+class ReadOnlyAdmin(admin.ModelAdmin):
+    def has_add_permission(self, request):
+        return False
+
+    def has_delete_permission(self, request, obj=None):
+        return False
+
+    def has_change_permission(self, request, obj=None):
+        return False
+
+
+admin.site.register(SystemUser, ReadOnlyAdmin)
+admin.site.register(TxComment, ReadOnlyAdmin)
 
 
 class WalletAdmin(admin.ModelAdmin):
     list_display = ('id', 'creator', 'ln_address_display', 'is_active', 'created_at')
-    readonly_fields = ('access_key_hash', 'account', 'public_id', 'created_at', 'updated_at')
+    readonly_fields = ('id', 'creator', 'access_key_hash', 'account', 'public_id', 'primary_currency', 'secondary_currency', 'created_at', 'updated_at')
+    fields = ('id', 'creator', 'account', 'public_id', 'is_active', 'primary_currency', 'secondary_currency', 'created_at', 'updated_at')
 
     def ln_address_display(self, obj):
         return obj.ln_address()
     ln_address_display.short_description = 'Lightning Address'
 
-    def get_fields(self, request, obj=None):
-        if obj is None:
-            return ('creator', 'is_active')
-        return ('creator', 'account', 'public_id', 'is_active', 'created_at', 'updated_at')
+    def has_add_permission(self, request):
+        return False
+
+    def has_delete_permission(self, request, obj=None):
+        return False
 
 
 admin.site.register(Wallet, WalletAdmin)
@@ -29,17 +42,20 @@ admin.site.register(Wallet, WalletAdmin)
 
 class BoltCardAdmin(admin.ModelAdmin):
     list_display = ('id', 'uid', 'wallet', 'is_enabled', 'counter', 'tx_limit', 'daily_limit')
-    readonly_fields = ('external_id', 'card_secret_hash', 'counter', 'daily_spent', 'daily_spent_date', 'created_at', 'updated_at')
+    readonly_fields = ('id', 'wallet', 'uid', 'external_id', 'card_secret_hash', 'counter', 'daily_spent', 'daily_spent_date', 'otp', 'created_at', 'updated_at')
+    fields = (
+        'id', 'wallet', 'uid', 'external_id',
+        'is_enabled', 'tx_limit', 'daily_limit',
+        'counter', 'daily_spent', 'daily_spent_date',
+        'created_at', 'updated_at',
+    )
     list_filter = ('is_enabled',)
 
-    def get_fields(self, request, obj=None):
-        if obj is None:
-            return ('wallet', 'uid', 'tx_limit', 'daily_limit', 'is_enabled')
-        return (
-            'wallet', 'uid', 'external_id', 'card_secret_hash',
-            'counter', 'tx_limit', 'daily_limit', 'daily_spent', 'daily_spent_date',
-            'is_enabled', 'otp', 'created_at', 'updated_at',
-        )
+    def has_add_permission(self, request):
+        return False
+
+    def has_delete_permission(self, request, obj=None):
+        return False
 
     def get_urls(self):
         urls = super().get_urls()
@@ -132,10 +148,9 @@ class BoltCardAdmin(admin.ModelAdmin):
 admin.site.register(BoltCard, BoltCardAdmin)
 
 
-class BoltCardHitAdmin(admin.ModelAdmin):
+class BoltCardHitAdmin(ReadOnlyAdmin):
     list_display = ('id', 'card', 'amount_sats', 'was_paid', 'old_counter', 'new_counter', 'created_at')
     list_filter = ('was_paid',)
-    readonly_fields = ('card', 'ip', 'user_agent', 'old_counter', 'new_counter', 'amount_sats', 'was_paid', 'created_at')
 
 
 admin.site.register(BoltCardHit, BoltCardHitAdmin)
