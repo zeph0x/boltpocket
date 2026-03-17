@@ -153,8 +153,8 @@ def accounting(request):
         inflow = Transaction.objects.filter(to_account=a).aggregate(s=Sum('amount'))['s'] or Decimal(0)
         outflow = Transaction.objects.filter(from_account=a).aggregate(s=Sum('amount'))['s'] or Decimal(0)
         computed = inflow - outflow
-        balance_sats = int(a.balance * 100_000_000)
-        computed_sats = int(computed * 100_000_000)
+        balance_sats = round(a.balance * 100_000_000)
+        computed_sats = round(computed * 100_000_000)
         diff = balance_sats - computed_sats
         total_balance += a.balance
         total_computed += computed
