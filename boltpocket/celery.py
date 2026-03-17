@@ -12,6 +12,7 @@ app.autodiscover_tasks()
 app.conf.include = [
     'accounts.backends.electrum.tasks',
     'accounts.backends.electrum.ln_tasks',
+    'accounts.tasks_recurring',
 ]
 
 

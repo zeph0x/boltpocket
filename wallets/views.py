@@ -456,16 +456,12 @@ def _confirm_recurring(request, data):
             pass
 
     if not next_payment:
-        if frequency == 'daily':
-            next_payment = now + datetime.timedelta(days=1)
-        elif frequency == 'weekly':
-            next_payment = now + datetime.timedelta(weeks=1)
-        elif frequency == 'biweekly':
-            next_payment = now + datetime.timedelta(weeks=2)
-        elif frequency == 'monthly':
-            next_payment = now + datetime.timedelta(days=30)
-        else:
-            next_payment = now + datetime.timedelta(days=1)
+        next_payment = now
+
+    # Reject dates in the past (before today)
+    today_start = now.replace(hour=0, minute=0, second=0, microsecond=0)
+    if next_payment < today_start:
+        return JsonResponse({'error': 'First payment date cannot be in the past'}, status=400)
 
     # Parse last payment date
     end_date = None

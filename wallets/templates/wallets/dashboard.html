@@ -279,9 +279,9 @@
                     <option value="monthly">Monthly</option>
                 </select>
 
-                <label for="rp-start-date">First payment (optional)</label>
+                <label for="rp-start-date">First payment</label>
                 <input type="date" id="rp-start-date" style="color-scheme:dark;">
-                <div class="hint">When to start. Defaults to one interval from now.</div>
+                <div class="hint">When to make the first payment.</div>
 
                 <label for="rp-end-date">Last payment (optional)</label>
                 <input type="date" id="rp-end-date" style="color-scheme:dark;">
@@ -458,6 +458,18 @@
     <script src="https://cdn.jsdelivr.net/npm/jdenticon@3.3.0/dist/jdenticon.min.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/html5-qrcode@2.3.8/html5-qrcode.min.js"></script>
     <script>
+    // --- Init date fields ---
+    (function() {
+        var today = new Date().toISOString().split('T')[0];
+        var startEl = document.getElementById('rp-start-date');
+        if (startEl) {
+            startEl.value = today;
+            startEl.min = today;
+        }
+        var endEl = document.getElementById('rp-end-date');
+        if (endEl) endEl.min = today;
+    })();
+
     // --- Identicon ---
     jdenticon.update('#identicon', '{{ ln_address }}');
 
@@ -1205,7 +1217,7 @@
             body.amount_fiat = amount;
             body.currency = unit;
         }
-        if (startDate) body.start_date = startDate;
+        body.start_date = startDate;
         if (endDate) body.end_date = endDate;
 
         fetch('/wallet/recurring/create/', {
@@ -1316,7 +1328,8 @@
                     rpDestInput.value = '';
                     document.getElementById('rp-amount').value = '';
                     document.getElementById('rp-desc').value = '';
-                    document.getElementById('rp-start-date').value = '';
+                    var today = new Date().toISOString().split('T')[0];
+                    document.getElementById('rp-start-date').value = today;
                     document.getElementById('rp-end-date').value = '';
                     rpDestHint.textContent = '';
                     loadRecurring();
