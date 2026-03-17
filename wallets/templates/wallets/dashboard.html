@@ -162,6 +162,28 @@
             {% endfor %}
         </ul>
 
+        {% if incoming_pending %}
+        <h2>⏳ Incoming</h2>
+        <table>
+            <thead>
+                <tr>
+                    <th>Time</th>
+                    <th>Status</th>
+                    <th>Amount</th>
+                </tr>
+            </thead>
+            <tbody>
+                {% for itx in incoming_pending %}
+                <tr style="opacity:0.7;">
+                    <td>{{ itx.created_at|date:"M d, H:i" }}</td>
+                    <td>{{ itx.confirmations }} conf</td>
+                    <td class="tx-in sats">+{{ itx.amount|floatformat:8 }}</td>
+                </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+        {% endif %}
+
         <h2>📊 Transactions</h2>
         {% if transactions %}
         <table>

@@ -124,6 +124,14 @@ def wallet_dashboard(request):
     except Exception:
         pass
 
+    # Pending incoming transactions (unconfirmed or not yet credited)
+    from accounts.models import IncomingTransaction
+    incoming_endpoints = DepositEndpoint.objects.filter(account=account)
+    incoming_pending = IncomingTransaction.objects.filter(
+        address__in=incoming_endpoints,
+        transaction=None,
+    ).order_by('-created_at')
+
     # Determine which fiat currency to use for conversions
     fiat_currency = primary if primary in ('USD', 'EUR', 'CHF') else (
         secondary if secondary in ('USD', 'EUR', 'CHF') else 'CHF'
@@ -142,6 +150,7 @@ def wallet_dashboard(request):
         'preferred_unit': preferred_unit,
         'cards': cards,
         'transactions': transactions,
+        'incoming_pending': incoming_pending,
         'ln_address': ln_address,
         'onchain_address': onchain_address,
         'account': account,

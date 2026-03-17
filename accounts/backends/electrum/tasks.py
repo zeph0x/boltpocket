@@ -105,8 +105,8 @@ def electrum_check_incoming_txs():
                         raise Exception("Problem initiating tx, IncomingTransaction %d" % (inc_tx.id))
 
                     IncomingTransaction.objects.filter(
-                        id=inc_tx.id, tx_identifier=TXidentifier, address=None
-                    ).update(address=incoming_address)
+                        id=inc_tx.id, tx_identifier=TXidentifier
+                    ).update(confirmations=tx["confirmations"])
 
                     from accounts.models import AccountType
                     incoming_account = Account.get_system_account(asset_btc, AccountType.ONCHAIN_INCOMING)
