@@ -72,7 +72,20 @@ def _process_recurring_payments():
 
 def _execute_recurring(rp, now):
     """Execute a single recurring payment."""
-    from accounts.models import RecurringPaymentExecution
+    from accounts.models import RecurringPayment, RecurringPaymentExecution
+
+    # Atomic claim: only proceed if last_payment is before today (or null)
+    today_start = now.replace(hour=0, minute=0, second=0, microsecond=0)
+    rows = RecurringPayment.objects.filter(
+        id=rp.id,
+        is_active=True,
+    ).exclude(
+        last_payment__gte=today_start,
+    ).update(last_payment=now)
+
+    if rows == 0:
+        logger.warning(f'Recurring payment {rp.id}: already executed today, skipping')
+        return
 
     account = rp.from_account
     account.refresh_from_db()
