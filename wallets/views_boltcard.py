@@ -262,7 +262,6 @@ def lnurl_callback(request, hit_id):
         tx = account.send_to_destination(
             amount=amount_btc,
             destination=pr,
-            card_verified=True,
         )
     except Exception as e:
         return JsonResponse({

@@ -92,7 +92,7 @@ def _execute_recurring(rp, now):
         return
 
     try:
-        tx = account.send_to_destination(amount_btc, rp.destination, card_verified=True)
+        tx = account.send_to_destination(amount_btc, rp.destination)
         rp.last_payment = now
         rp.last_error = ''
 
