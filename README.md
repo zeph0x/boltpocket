@@ -1,6 +1,6 @@
 # ⚡ BoltPocket
 
-Self-hosted Bitcoin wallet with NFC card payments. Tap your card to pay at any boltcard supporting merchant.
+Self-hosted Bitcoin wallet/account system with NFC card payments. Tap your card to pay at any boltcard supporting merchant.
 
 The goal for the project is to allow anyone to host their own boltcard server, with straightforward and easy-to-use UX. Minimal configuration, minimal hassle, easy to use. Initially designed because I wanted to pay my kids allowance money in BTC, but I use it also for recurring donations and such.
 
