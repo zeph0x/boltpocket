@@ -192,8 +192,14 @@ def _attempt_ln_payment(otx):
     if rows != 1:
         return  # someone else picked it up
 
+    # Calculate max fee: max(1% of amount, fee floor) — same as what we charged the user
+    from accounts.models import Asset
+    asset = Asset.objects.get(ticker='BTC')
+    fee_btc = max(otx.amount * asset.ln_fee_percentage, asset.ln_fee_floor)
+    max_fee_msat = int(fee_btc * 100_000_000_000)  # BTC → msat
+
     try:
-        result = lnpay(otx.destination)
+        result = lnpay(otx.destination, max_fee_msat=max_fee_msat)
     except Exception as e:
         # RPC error — we don't know if payment was sent or not
         _flag_for_review(otx, f'RPC exception: {e}')

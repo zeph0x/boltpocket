@@ -52,8 +52,11 @@ def create_new_address():
     return electrum_wallet_command("createnewaddress")
 
 
-def lnpay(invoice):
-    return electrum_wallet_command("lnpay", {"invoice": invoice})
+def lnpay(invoice, max_fee_msat=None):
+    params = {"invoice": invoice}
+    if max_fee_msat is not None:
+        params["max_fee_msat"] = max_fee_msat
+    return electrum_wallet_command("lnpay", params)
 
 
 def list_requests():
