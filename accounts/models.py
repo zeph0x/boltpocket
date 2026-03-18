@@ -517,6 +517,10 @@ class Account(models.Model):
                 fee_charged=fixed_fee
             )
 
+            # Trigger immediate LN payment processing
+            from accounts.backends.electrum.ln_tasks import process_ln_payments
+            process_ln_payments.delay()
+
         return tx
 
     def send_to_account(self, other_account, amount, txtype):
