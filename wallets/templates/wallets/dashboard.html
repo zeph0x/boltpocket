@@ -417,6 +417,12 @@
     <div id="tab-info" class="tab-content">
         <h2>ℹ️ About BoltPocket</h2>
 
+        {% if site_settings.info_banner %}
+        <div style="background:#3a2000; border:1px solid #f7931a; padding:1em 1.5em; border-radius:8px; margin:1em 0;">
+            <p style="margin:0; color:#f7931a;">⚠️ {{ site_settings.info_banner }}</p>
+        </div>
+        {% endif %}
+
         <div style="background:#16213e; padding:1.5em; border-radius:8px; margin:1em 0;">
             <p style="margin:0 0 1em 0;">BoltPocket is a self-hosted Bitcoin wallet with NFC card payments. Tap your card to pay at any merchant that accepts Lightning.</p>
 

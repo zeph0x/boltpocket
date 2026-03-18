@@ -398,6 +398,31 @@ class BoltCardHit(models.Model):
         pass
 
 
+class SiteSettings(models.Model):
+    """Singleton site-wide settings editable from admin."""
+    info_banner = models.TextField(
+        blank=True, default='This is a demo instance meant for educational and testing purposes only.',
+        help_text='Text displayed on the wallet info page. Leave empty to hide.',
+    )
+
+    class Meta:
+        verbose_name = 'Site Settings'
+        verbose_name_plural = 'Site Settings'
+
+    def __str__(self):
+        return 'Site Settings'
+
+    def save(self, *args, **kwargs):
+        # Enforce singleton
+        self.pk = 1
+        super().save(*args, **kwargs)
+
+    @classmethod
+    def load(cls):
+        obj, _ = cls.objects.get_or_create(pk=1)
+        return obj
+
+
 class TxComment(models.Model):
     created_at = models.DateTimeField(auto_now_add=True)
     updated_at = models.DateTimeField(auto_now=True)

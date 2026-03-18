@@ -2,7 +2,7 @@ from django.contrib import admin
 from django.urls import path
 from django.shortcuts import render
 from django.utils.html import format_html
-from .models import SystemUser, Wallet, TxComment, BoltCard, BoltCardHit
+from .models import SystemUser, Wallet, TxComment, BoltCard, BoltCardHit, SiteSettings
 from accounts.models import Asset, Account
 
 
@@ -154,3 +154,15 @@ class BoltCardHitAdmin(ReadOnlyAdmin):
 
 
 admin.site.register(BoltCardHit, BoltCardHitAdmin)
+
+
+class SiteSettingsAdmin(admin.ModelAdmin):
+    def has_add_permission(self, request):
+        # Only allow one instance
+        return not SiteSettings.objects.exists()
+
+    def has_delete_permission(self, request, obj=None):
+        return False
+
+
+admin.site.register(SiteSettings, SiteSettingsAdmin)

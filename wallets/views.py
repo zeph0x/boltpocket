@@ -3,7 +3,7 @@ from django.http import JsonResponse
 from django.shortcuts import render, redirect, get_object_or_404
 from django.views.decorators.csrf import csrf_exempt
 from django.views.decorators.http import require_POST
-from .models import Wallet, BoltCard
+from .models import Wallet, BoltCard, SiteSettings
 
 
 def wallet_login(request):
@@ -156,6 +156,7 @@ def wallet_dashboard(request):
         'account': account,
         'display_currency_choices': Wallet.DISPLAY_CURRENCY_CHOICES,
         'fiat_currency_choices': Wallet.FIAT_CURRENCY_CHOICES,
+        'site_settings': SiteSettings.load(),
     })
 
 
