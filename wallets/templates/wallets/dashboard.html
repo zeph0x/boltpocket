@@ -85,6 +85,18 @@
     </style>
 </head>
 <body>
+    <div id="ios-banner" style="display:none; background:#3a2000; border:1px solid #f7931a; padding:0.8em 1em; border-radius:8px; margin:0 0 1em 0; position:relative;">
+        <p style="margin:0; color:#f7931a; font-size:0.9em;">🍎 NFC card scanning is not supported on iOS due to Apple restrictions. For full functionality (sending, card payments), use an Android phone with Chrome. You can still view your balance and receive payments here.</p>
+        <button onclick="this.parentElement.style.display='none'; localStorage.setItem('ios_banner_dismissed','1');" style="position:absolute; top:0.5em; right:0.5em; background:none; border:none; color:#f7931a; font-size:1.2em; cursor:pointer; padding:0 0.3em;">✕</button>
+    </div>
+    <script>
+    (function() {
+        var isIOS = /iPad|iPhone|iPod/.test(navigator.userAgent) || (navigator.platform === 'MacIntel' && navigator.maxTouchPoints > 1);
+        if (isIOS && !localStorage.getItem('ios_banner_dismissed')) {
+            document.getElementById('ios-banner').style.display = 'block';
+        }
+    })();
+    </script>
     <div class="wallet-header">
         <svg id="identicon" class="identicon" width="56" height="56"></svg>
         <div class="info">
