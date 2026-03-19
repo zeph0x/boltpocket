@@ -762,11 +762,15 @@
                 showResult('error', 'NFC not available — paste the card tap URL below.', 'charge-result');
             });
         } else {
-            // No NFC support at all — manual input only
+            // No NFC support — show iOS-specific message or generic fallback
             btn.textContent = '✕ Cancel';
             btn.style.background = '#555';
             manualEl.style.display = 'block';
-            showResult('error', 'NFC not supported on this device — paste the card tap URL below.', 'charge-result');
+            if (isIOS) {
+                showResult('error', '🍎 NFC scanning is not supported on iOS due to Apple restrictions. Use an <strong>Android phone</strong> with Chrome, or paste the card tap URL below.', 'charge-result');
+            } else {
+                showResult('error', 'NFC not supported on this device — paste the card tap URL below.', 'charge-result');
+            }
         }
     }
 
@@ -1121,7 +1125,20 @@
         });
     }
 
+    var isIOS = /iPad|iPhone|iPod/.test(navigator.userAgent) || (navigator.platform === 'MacIntel' && navigator.maxTouchPoints > 1);
+
     function startNfcScan() {
+        // iOS doesn't support Web NFC — show warning
+        if (isIOS && !('NDEFReader' in window)) {
+            showResult('error',
+                '🍎 NFC card scanning is not supported on iOS due to Apple restrictions.<br><br>' +
+                'To confirm payments by tapping your card, use an <strong>Android phone</strong> with Chrome.<br><br>' +
+                'Alternatively, you can paste your card tap URL below:'
+            );
+            showManualTapInput(true);
+            return;
+        }
+
         // Try Web NFC API first (Android Chrome)
         if ('NDEFReader' in window) {
             nfcAbortController = new AbortController();
@@ -1147,14 +1164,18 @@
         }
     }
 
-    function showManualTapInput() {
+    function showManualTapInput(append) {
         var el = document.getElementById('send-result');
-        el.className = 'send-result success';
-        el.innerHTML = '⏳ Paste your bolt card tap URL to confirm:<br><br>'
-            + '<input type="text" id="manual-tap-url" placeholder="lnurlw://your-server.com/boltcard/scan/...?p=...&c=..." '
+        var html = '<input type="text" id="manual-tap-url" placeholder="lnurlw://your-server.com/boltcard/scan/...?p=...&c=..." '
             + 'style="width:100%;padding:0.5em;background:#1a1a2e;border:1px solid #333;border-radius:4px;color:#eee;font-family:monospace;font-size:0.85em;box-sizing:border-box;">'
             + '<br><br><button class="btn" onclick="manualConfirm()" style="width:100%;">Confirm</button>'
             + '&nbsp;<button class="btn" onclick="cancelSend()" style="background:#555;width:100%;margin-top:0.5em;">Cancel</button>';
+        if (append) {
+            el.innerHTML += '<br><br>' + html;
+        } else {
+            el.className = 'send-result success';
+            el.innerHTML = '⏳ Paste your bolt card tap URL to confirm:<br><br>' + html;
+        }
         el.style.display = 'block';
     }
 
@@ -1315,6 +1336,14 @@
     }
 
     function startRpNfcScan() {
+        if (isIOS && !('NDEFReader' in window)) {
+            showResult('error',
+                '🍎 NFC card scanning is not supported on iOS due to Apple restrictions.<br><br>' +
+                'Use an <strong>Android phone</strong> with Chrome to confirm payments by tapping your card.',
+                'rp-result');
+            showRpManualInput(true);
+            return;
+        }
         if ('NDEFReader' in window) {
             var btn = document.getElementById('rp-create-btn');
             var nfcCtrl = new AbortController();
@@ -1342,14 +1371,18 @@
         }
     }
 
-    function showRpManualInput() {
+    function showRpManualInput(append) {
         var el = document.getElementById('rp-result');
-        el.className = 'send-result success';
-        el.innerHTML = '⏳ Paste your bolt card tap URL to confirm:<br><br>'
-            + '<input type="text" id="rp-manual-url" placeholder="lnurlw://your-server.com/boltcard/scan/...?p=...&c=..." '
+        var html = '<input type="text" id="rp-manual-url" placeholder="lnurlw://your-server.com/boltcard/scan/...?p=...&c=..." '
             + 'style="width:100%;padding:0.5em;background:#1a1a2e;border:1px solid #333;border-radius:4px;color:#eee;font-family:monospace;font-size:0.85em;box-sizing:border-box;">'
             + '<br><br><button class="btn" onclick="rpManualConfirm()" style="width:100%;">Confirm</button>'
             + '&nbsp;<button class="btn" onclick="cancelRp()" style="background:#555;width:100%;margin-top:0.5em;">Cancel</button>';
+        if (append) {
+            el.innerHTML += '<br><br>' + html;
+        } else {
+            el.className = 'send-result success';
+            el.innerHTML = '⏳ Paste your bolt card tap URL to confirm:<br><br>' + html;
+        }
         el.style.display = 'block';
     }
 
