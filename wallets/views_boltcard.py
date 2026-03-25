@@ -129,14 +129,23 @@ def lnurl_scan(request, external_id, card_secret):
     # Build callback URL
     callback = request.build_absolute_uri(f'/boltcard/callback/{hit.id}/')
 
-    return JsonResponse({
+    # LUD-19: payLink for deposits to this wallet
+    ln_address = card.wallet.ln_address()
+    local_part = ln_address.split('@')[0] if ln_address else None
+    pay_link = request.build_absolute_uri(f'/.well-known/lnurlp/{local_part}/') if local_part else None
+
+    response = {
         'tag': 'withdrawRequest',
         'callback': callback,
         'k1': str(hit.id),
         'defaultDescription': 'BoltCard payment',
         'minWithdrawable': 1000,           # 1 sat
         'maxWithdrawable': 1000000000,     # 1M sats — real limits enforced at callback
-    })
+    }
+    if pay_link:
+        response['payLink'] = pay_link
+
+    return JsonResponse(response)
 
 
 @require_GET
