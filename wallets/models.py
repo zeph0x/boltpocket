@@ -390,6 +390,7 @@ class BoltCardHit(models.Model):
     # Amount paid (0 if not yet paid or rejected)
     amount_sats = models.IntegerField(default=0)
     was_paid = models.BooleanField(default=False)
+    transaction = models.ForeignKey(Transaction, on_delete=models.PROTECT, null=True, default=None, blank=True)
 
     def __str__(self):
         return f"Hit {self.id} on {self.card} — {self.amount_sats} sats"

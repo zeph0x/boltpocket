@@ -241,6 +241,7 @@ def lnurl_callback(request, hit_id):
     BoltCardHit.objects.filter(id=hit.id).update(
         amount_sats=amount_sats,
         was_paid=True,
+        transaction=tx,
     )
 
     logger.info(f'BoltCard {card.id} paid {amount_sats} sats via hit {hit.id}')
