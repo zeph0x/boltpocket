@@ -175,6 +175,13 @@ def lnurl_callback(request, hit_id):
             'reason': 'Already paid',
         })
 
+    from django.utils import timezone
+    if (timezone.now() - hit.created_at).total_seconds() > 300:
+        return JsonResponse({
+            'status': 'ERROR',
+            'reason': 'Tap expired (5 min timeout)',
+        })
+
     card = hit.card
 
     if not card.is_enabled:
