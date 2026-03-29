@@ -10,8 +10,9 @@ source venv/bin/activate
 python3 manage.py migrate --run-syncdb 2>&1 | grep -v "No migrations to apply" || true
 
 echo "→ Restarting celery..."
-tmux send-keys -t celery C-c
-sleep 3
+pkill -9 -f "celery -A boltpocket" 2>/dev/null || true
+sleep 2
+rm -f celerybeat-schedule celerybeat.pid 2>/dev/null || true
 tmux send-keys -t celery "cd /home/boltpocket && source venv/bin/activate && celery -A boltpocket worker --beat -l info" Enter
 
 echo "→ Restarting django..."
