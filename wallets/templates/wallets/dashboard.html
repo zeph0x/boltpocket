@@ -266,7 +266,11 @@
         <!-- Recurring payments -->
         <div id="panel-send-recurring" class="sub-panel" data-group="send">
             <div class="send-form">
-                <label for="rp-dest">Destination</label>
+                <div style="display:flex;justify-content:space-between;align-items:center;">
+                    <label for="rp-dest" style="margin:0;">Destination</label>
+                    <button class="btn" id="rp-scan-qr-btn" onclick="startRpQrScan()" style="font-size:0.8em;padding:0.3em 0.7em;">📷 Scan QR</button>
+                </div>
+                <div id="rp-qr-scanner-container" style="display:none;margin:0.5em 0;border-radius:8px;overflow:hidden;"></div>
                 <textarea id="rp-dest" placeholder="Lightning address or bitcoin address (not invoices)" rows="2"></textarea>
                 <div class="hint" id="rp-dest-hint"></div>
 
@@ -871,6 +875,61 @@
                 html5QrScanner = null;
             }).catch(function() {
                 html5QrScanner = null;
+            });
+        }
+        container.style.display = 'none';
+        container.innerHTML = '';
+        btn.textContent = '📷 Scan QR';
+    }
+
+    // --- Recurring payment QR scanner ---
+    var rpQrScanner = null;
+
+    function startRpQrScan() {
+        var container = document.getElementById('rp-qr-scanner-container');
+        var btn = document.getElementById('rp-scan-qr-btn');
+
+        if (rpQrScanner) {
+            stopRpQrScan();
+            return;
+        }
+
+        container.style.display = 'block';
+        btn.textContent = '✕ Close';
+
+        rpQrScanner = new Html5Qrcode('rp-qr-scanner-container');
+        rpQrScanner.start(
+            { facingMode: 'environment' },
+            { fps: 10, qrbox: { width: 250, height: 250 } },
+            function(decodedText) {
+                stopRpQrScan();
+                // Strip bitcoin: / lightning: prefixes, extract address
+                var dest = decodedText.trim();
+                if (dest.toLowerCase().startsWith('bitcoin:')) {
+                    dest = dest.substring(8).split('?')[0];
+                } else if (dest.toLowerCase().startsWith('lightning:')) {
+                    dest = dest.substring(10);
+                }
+                document.getElementById('rp-dest').value = dest;
+                document.getElementById('rp-dest').dispatchEvent(new Event('input'));
+            },
+            function() { /* ignore scan errors */ }
+        ).catch(function(err) {
+            container.innerHTML = '<p style="color:#f87171;padding:1em;text-align:center;">Camera access denied or unavailable.</p>';
+            setTimeout(function() { stopRpQrScan(); }, 3000);
+        });
+    }
+
+    function stopRpQrScan() {
+        var container = document.getElementById('rp-qr-scanner-container');
+        var btn = document.getElementById('rp-scan-qr-btn');
+
+        if (rpQrScanner) {
+            rpQrScanner.stop().then(function() {
+                rpQrScanner.clear();
+                rpQrScanner = null;
+            }).catch(function() {
+                rpQrScanner = null;
             });
         }
         container.style.display = 'none';
