@@ -443,7 +443,7 @@ class Account(models.Model):
             raise Exception("Account %d balance mismatch, in cache %s, should be %s" %
                 (self.id, self.balance, sendable_balance_db))
 
-        # Check for internal transfers (on-chain address or LN invoice with known rhash)
+        # Check for internal transfers (on-chain address, LN invoice, or LN address)
         internal_endpoint = None
         if dest_type == DestinationType.ONCHAIN:
             if not self.asset.validate_address(destination):
@@ -456,6 +456,21 @@ class Account(models.Model):
                 internal_endpoint = DepositEndpoint.objects.filter(
                     address=rhash, asset=self.asset, endpoint_type=EndpointType.LN,
                 ).first()
+
+        elif dest_type == DestinationType.LN_ADDRESS:
+            # Check if LN address belongs to a local wallet
+            from django.conf import settings as django_settings
+            ln_domain = getattr(django_settings, 'LNURL_DOMAIN', 'localhost')
+            if '@' in destination and destination.split('@')[1] == ln_domain:
+                local_part = destination.split('@')[0]
+                try:
+                    import base64
+                    public_id = base64.b32decode(local_part.upper() + '=' * (-len(local_part) % 8)).hex()
+                    from wallets.models import Wallet
+                    w = Wallet.objects.select_related('account').get(public_id=public_id)
+                    internal_endpoint = type('obj', (object,), {'account': w.account})()
+                except Exception:
+                    pass
 
         if internal_endpoint and internal_endpoint.account:
             if internal_endpoint.account.id == self.id:
