@@ -204,6 +204,7 @@
                     <th>Time</th>
                     <th>Type</th>
                     <th>Amount</th>
+                    <th></th>
                 </tr>
             </thead>
             <tbody>
@@ -218,6 +219,7 @@
                     {% else %}
                     <td class="tx-out sats">-{{ tx.amount|floatformat:8 }}</td>
                     {% endif %}
+                    <td style="color:#888;font-size:0.8em;">{% if tx.fiat_amount %}{{ tx.fiat_amount|floatformat:2 }} {{ tx.fiat_currency }}{% endif %}</td>
                 </tr>
                 {% endfor %}
             </tbody>
