@@ -132,10 +132,6 @@ class Transaction(models.Model):
 
     tx_type = models.IntegerField(choices=TxType.choices)
 
-    # Fiat value snapshot at transaction time (best-effort, nullable)
-    fiat_amount = models.DecimalField(max_digits=12, decimal_places=2, null=True, default=None)
-    fiat_currency = models.CharField(max_length=4, null=True, default=None)
-
     # if internal transaction via address lookup, add foreign key to the assetaddress
     to_internal_address = models.ForeignKey('DepositEndpoint', null=True, default=None, on_delete=models.PROTECT)
 
@@ -558,32 +554,7 @@ class Account(models.Model):
         rows_updated = Account.objects.filter(id=self.id, balance=self.balance).update(balance=new_balance)
         if rows_updated == 1:
             self.balance = new_balance
-            # Snapshot fiat value at transaction time
-            fiat_amount = None
-            fiat_currency = None
-            try:
-                from prices.tasks import get_latest_price
-                # Try CHF (3) as default, fallback to USD (1)
-                for cid, cname in [(3, 'CHF'), (1, 'USD'), (2, 'EUR')]:
-                    price = get_latest_price(cid)
-                    if price:
-                        fiat_amount = round(amount * price, 2)
-                        fiat_currency = cname
-                        break
-            except Exception:
-                pass
-
-            tx = Transaction.objects.create(
-                asset=self.asset,
-                from_account=self,
-                to_account=other_account,
-                amount=amount,
-                tx_type=txtype,
-                from_balance_before_tx=new_balance + amount,
-                to_balance_before_tx=other_account.balance,
-                fiat_amount=fiat_amount,
-                fiat_currency=fiat_currency,
-            )
+            tx = Transaction.objects.create(asset= self.asset, from_account=self, to_account=other_account, amount=amount, tx_type=txtype, from_balance_before_tx=new_balance + amount, to_balance_before_tx= other_account.balance)
             rows_updated_2 = Account.objects.filter(id=other_account.id).update(balance=F('balance') + amount)
             if rows_updated_2 < 1:
                 import logging
