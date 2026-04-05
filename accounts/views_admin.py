@@ -1,5 +1,5 @@
 """
-Admin-only views: node stats, accounting overview.
+Admin-only views: node stats, accounting overview, payment review.
 """
 
 import json
@@ -319,3 +319,86 @@ def generate_wallets(request):
     writer.writerows(rows)
 
     return response
+
+
+@staff_member_required
+def payment_review(request):
+    """Admin page to review, retry, or reject pending outgoing transactions."""
+    from accounts.models import (
+        Account, Outgoingtransaction, OutgoingStatus, TxType, Transaction,
+    )
+
+    if request.method == 'POST':
+        action = request.POST.get('action')
+        otx_id = request.POST.get('otx_id')
+
+        try:
+            otx = Outgoingtransaction.objects.get(id=otx_id)
+        except Outgoingtransaction.DoesNotExist:
+            return JsonResponse({'error': 'Transaction not found'}, status=404)
+
+        if action == 'retry':
+            if otx.status not in (OutgoingStatus.PENDING_REVIEW, OutgoingStatus.FAILED):
+                return JsonResponse({'error': 'Can only retry PENDING_REVIEW or FAILED'}, status=400)
+            Outgoingtransaction.objects.filter(id=otx.id).update(status=OutgoingStatus.PENDING)
+            # Trigger processing
+            if otx.destination_type in (1, 2):  # LN_INVOICE, LN_ADDRESS
+                from accounts.backends.electrum.ln_tasks import process_ln_payments
+                process_ln_payments.delay()
+            else:
+                from accounts.backends.electrum.tasks import process_onchain_outgoing
+                process_onchain_outgoing.delay()
+            return JsonResponse({'ok': True, 'message': f'OTX#{otx.id} re-queued as PENDING'})
+
+        elif action == 'reject':
+            if otx.status not in (OutgoingStatus.PENDING_REVIEW, OutgoingStatus.FAILED, OutgoingStatus.PENDING):
+                return JsonResponse({'error': 'Cannot reject this transaction'}, status=400)
+
+            # Reverse the withdrawal: system account → user account
+            from_account = otx.from_account
+            if otx.destination_type in (1, 2):  # LN
+                system_account = Account.get_system_account(from_account.asset, 3)  # LN_OUTGOING
+            else:
+                system_account = Account.get_system_account(from_account.asset, 6)  # ONCHAIN_OUTGOING
+
+            # Reverse main amount
+            system_account.send_to_account(from_account, otx.amount, TxType.ERROR_REVERSAL)
+
+            # Reverse fee if charged
+            if hasattr(otx, 'fee_charged') and otx.fee_charged:
+                fee_account = from_account.asset.fee_account
+                if fee_account:
+                    fee_account.send_to_account(from_account, otx.fee_charged, TxType.ERROR_REVERSAL)
+
+            Outgoingtransaction.objects.filter(id=otx.id).update(status=OutgoingStatus.FAILED)
+            amount_sats = round(otx.amount * 100_000_000)
+            return JsonResponse({'ok': True, 'message': f'OTX#{otx.id} rejected, {amount_sats} sats reversed'})
+
+        return JsonResponse({'error': 'Unknown action'}, status=400)
+
+    # GET — show review page
+    review_statuses = [OutgoingStatus.PENDING_REVIEW, OutgoingStatus.FAILED, OutgoingStatus.PENDING]
+    transactions = []
+    for otx in Outgoingtransaction.objects.filter(status__in=review_statuses).order_by('-created_at'):
+        amount_sats = round(otx.amount * 100_000_000)
+        fee_sats = round(otx.fee_charged * 100_000_000) if otx.fee_charged else 0
+        dest_type_map = {1: 'LN Invoice', 2: 'LN Address', 3: 'On-chain'}
+        status_map = {1: 'PENDING', 2: 'IN_FLIGHT', 3: 'COMPLETED', 4: 'FAILED', 5: 'PENDING_REVIEW'}
+        transactions.append({
+            'id': otx.id,
+            'created_at': otx.created_at,
+            'from_account_id': otx.from_account_id,
+            'amount_sats': amount_sats,
+            'fee_sats': fee_sats,
+            'destination': otx.destination[:80],
+            'destination_full': otx.destination,
+            'destination_type': dest_type_map.get(otx.destination_type, str(otx.destination_type)),
+            'status': status_map.get(otx.status, str(otx.status)),
+            'status_raw': otx.status,
+            'is_urgent': getattr(otx, 'is_urgent', False),
+        })
+
+    return render(request, 'admin/payment_review.html', {
+        'transactions': transactions,
+        'title': 'Payment Review',
+    })

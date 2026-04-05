@@ -18,6 +18,6 @@ tmux send-keys -t celery "cd /home/boltpocket && source venv/bin/activate && cel
 echo "→ Restarting django..."
 tmux send-keys -t boltpocket C-c
 sleep 2
-tmux send-keys -t boltpocket "cd /home/boltpocket && source venv/bin/activate && python3 manage.py runserver 0.0.0.0:8000" Enter
+tmux send-keys -t boltpocket "cd /home/boltpocket && source venv/bin/activate && python3 manage.py runserver 127.0.0.1:8000" Enter
 
 echo "✓ Done"

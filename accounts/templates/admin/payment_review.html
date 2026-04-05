@@ -1,0 +1,109 @@
+{% extends "admin/base_site.html" %}
+{% block title %}Payment Review{% endblock %}
+{% block content %}
+<style>
+    .review-table { width: 100%; border-collapse: collapse; margin: 1em 0; }
+    .review-table th, .review-table td { text-align: left; padding: 0.6em 0.8em; border-bottom: 1px solid #ddd; font-size: 0.9em; }
+    .review-table th { background: #f5f5f5; font-weight: bold; }
+    .status-pending-review { color: #e67e22; font-weight: bold; }
+    .status-failed { color: #e74c3c; font-weight: bold; }
+    .status-pending { color: #3498db; font-weight: bold; }
+    .btn-retry { background: #3498db; color: #fff; border: none; padding: 0.4em 0.8em; border-radius: 4px; cursor: pointer; font-size: 0.85em; }
+    .btn-retry:hover { background: #2980b9; }
+    .btn-reject { background: #e74c3c; color: #fff; border: none; padding: 0.4em 0.8em; border-radius: 4px; cursor: pointer; font-size: 0.85em; }
+    .btn-reject:hover { background: #c0392b; }
+    .dest-cell { max-width: 300px; word-break: break-all; font-family: monospace; font-size: 0.8em; }
+    .empty-state { padding: 2em; text-align: center; color: #888; }
+    .flash { padding: 0.8em 1em; margin: 0.5em 0; border-radius: 4px; display: none; }
+    .flash-ok { background: #d4edda; border: 1px solid #c3e6cb; color: #155724; }
+    .flash-err { background: #f8d7da; border: 1px solid #f5c6cb; color: #721c24; }
+</style>
+
+<h1>⚠️ Payment Review</h1>
+<p>Outgoing transactions that need attention (PENDING_REVIEW, FAILED, PENDING).</p>
+
+<div id="flash" class="flash"></div>
+
+{% if transactions %}
+<table class="review-table">
+    <thead>
+        <tr>
+            <th>ID</th>
+            <th>Time</th>
+            <th>Account</th>
+            <th>Amount</th>
+            <th>Fee</th>
+            <th>Type</th>
+            <th>Status</th>
+            <th>Destination</th>
+            <th>Actions</th>
+        </tr>
+    </thead>
+    <tbody>
+        {% for tx in transactions %}
+        <tr id="row-{{ tx.id }}">
+            <td>#{{ tx.id }}</td>
+            <td>{{ tx.created_at|date:"Y-m-d H:i" }}</td>
+            <td>#{{ tx.from_account_id }}</td>
+            <td>{{ tx.amount_sats }} sats</td>
+            <td>{{ tx.fee_sats }}</td>
+            <td>{{ tx.destination_type }}</td>
+            <td class="status-{{ tx.status|lower|cut:' '|cut:'_' }}">
+                {{ tx.status }}
+                {% if tx.is_urgent %} 🔴{% endif %}
+            </td>
+            <td class="dest-cell" title="{{ tx.destination_full }}">{{ tx.destination }}</td>
+            <td>
+                {% if tx.status_raw == 5 or tx.status_raw == 4 %}
+                <button class="btn-retry" onclick="reviewAction({{ tx.id }}, 'retry')">🔄 Retry</button>
+                {% endif %}
+                {% if tx.status_raw != 3 %}
+                <button class="btn-reject" onclick="reviewAction({{ tx.id }}, 'reject')">❌ Reject</button>
+                {% endif %}
+            </td>
+        </tr>
+        {% endfor %}
+    </tbody>
+</table>
+{% else %}
+<div class="empty-state">
+    <p>✅ No transactions need review.</p>
+</div>
+{% endif %}
+
+<script>
+function reviewAction(otxId, action) {
+    var label = action === 'reject' ? 'reject and reverse' : 'retry';
+    if (!confirm('Are you sure you want to ' + label + ' OTX#' + otxId + '?')) return;
+
+    var flash = document.getElementById('flash');
+    fetch('', {
+        method: 'POST',
+        headers: {
+            'Content-Type': 'application/x-www-form-urlencoded',
+            'X-CSRFToken': '{{ csrf_token }}',
+        },
+        body: 'action=' + action + '&otx_id=' + otxId,
+    })
+    .then(function(r) { return r.json(); })
+    .then(function(data) {
+        if (data.ok) {
+            flash.className = 'flash flash-ok';
+            flash.textContent = data.message;
+            flash.style.display = 'block';
+            var row = document.getElementById('row-' + otxId);
+            if (row) row.style.opacity = '0.3';
+        } else {
+            flash.className = 'flash flash-err';
+            flash.textContent = data.error || 'Unknown error';
+            flash.style.display = 'block';
+        }
+    })
+    .catch(function() {
+        flash.className = 'flash flash-err';
+        flash.textContent = 'Network error';
+        flash.style.display = 'block';
+    });
+}
+</script>
+{% endblock %}
