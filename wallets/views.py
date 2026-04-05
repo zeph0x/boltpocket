@@ -195,7 +195,8 @@ def wallet_probe_destination(request):
     lnurl_url = None
     if d.startswith('lnurl1'):
         try:
-            lnurl_url = _decode_lnurl_bech32(d)
+            from accounts.lnurl_utils import decode_lnurl_bech32
+            lnurl_url = decode_lnurl_bech32(d)
         except Exception:
             return JsonResponse({'error': 'Invalid LNURL'}, status=400)
     elif d.startswith('lnurlp://'):
@@ -261,50 +262,6 @@ def wallet_probe_destination(request):
 
     return JsonResponse({'error': 'Unrecognized destination'}, status=400)
 
-
-def _decode_lnurl_bech32(lnurl_str):
-    """Decode a bech32-encoded LNURL string to a URL."""
-    lnurl_str = lnurl_str.lower()
-    # Remove lnurl prefix and decode bech32
-    hrp, data = _bech32_decode(lnurl_str)
-    if hrp != 'lnurl':
-        raise ValueError(f'Expected lnurl HRP, got {hrp}')
-    # Convert 5-bit groups to 8-bit bytes
-    decoded = _convertbits(data, 5, 8, False)
-    return bytes(decoded).decode('utf-8')
-
-
-def _bech32_decode(bech):
-    """Minimal bech32 decoder for LNURL."""
-    CHARSET = "qpzry9x8gf2tvdw0s3jn54khce6mua7l"
-    pos = bech.rfind('1')
-    if pos < 1:
-        raise ValueError('Invalid bech32')
-    hrp = bech[:pos]
-    data_part = bech[pos+1:]
-    # Decode characters to 5-bit values, strip 6-char checksum
-    values = [CHARSET.index(c) for c in data_part]
-    return hrp, values[:-6]
-
-
-def _convertbits(data, frombits, tobits, pad=True):
-    """General power-of-2 base conversion."""
-    acc = 0
-    bits = 0
-    ret = []
-    maxv = (1 << tobits) - 1
-    for value in data:
-        acc = (acc << frombits) | value
-        bits += frombits
-        while bits >= tobits:
-            bits -= tobits
-            ret.append((acc >> bits) & maxv)
-    if pad:
-        if bits:
-            ret.append((acc << (tobits - bits)) & maxv)
-    elif bits >= frombits or ((acc << (tobits - bits)) & maxv):
-        raise ValueError('Invalid padding')
-    return ret
 
 
 def _resolve_lnurl_pay_invoice(callback, amount_sats, metadata=''):
@@ -372,7 +329,8 @@ def wallet_send(request):
     lnurl_metadata = None
     if d_lower.startswith('lnurl1'):
         try:
-            lnurl_url = _decode_lnurl_bech32(d_lower)
+            from accounts.lnurl_utils import decode_lnurl_bech32
+            lnurl_url = decode_lnurl_bech32(d_lower)
         except Exception:
             return JsonResponse({'error': 'Invalid LNURL'}, status=400)
         try:

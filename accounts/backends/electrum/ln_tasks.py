@@ -31,55 +31,15 @@ LOCK_TTL = 120
 
 def _resolve_ln_address(otx):
     """
-    Resolve a lightning address (user@domain) to a BOLT11 invoice via LNURL-pay.
+    Resolve an LN_ADDRESS destination (user@domain, lnurl1..., lnurlp://...)
+    to a BOLT11 invoice via LNURL-pay.
     On success, updates the outgoing transaction destination to the invoice.
     """
     from accounts.models import Outgoingtransaction, DestinationType
+    from accounts.lnurl_utils import resolve_to_invoice
 
     address = otx.destination.strip()
-    if '@' not in address:
-        raise Exception(f'Invalid LN address: {address}')
-
-    local, domain = address.split('@', 1)
-    amount_msats = int(otx.amount * 100_000_000_000)  # BTC → millisats
-
-    # Step 1: Fetch LNURL-pay metadata
-    url = f'https://{domain}/.well-known/lnurlp/{local}'
-    resp = http_requests.get(url, timeout=10)
-    resp.raise_for_status()
-    data = resp.json()
-
-    if data.get('status') == 'ERROR':
-        raise Exception(f'LNURL error: {data.get("reason", "unknown")}')
-
-    if data.get('tag') != 'payRequest':
-        raise Exception(f'Expected payRequest, got: {data.get("tag")}')
-
-    min_sendable = data.get('minSendable', 0)
-    max_sendable = data.get('maxSendable', 0)
-    if amount_msats < min_sendable or amount_msats > max_sendable:
-        raise Exception(
-            f'Amount {amount_msats} msats outside range [{min_sendable}, {max_sendable}]'
-        )
-
-    # Step 2: Call callback to get invoice
-    callback = data['callback']
-    separator = '&' if '?' in callback else '?'
-    callback_url = f'{callback}{separator}amount={amount_msats}'
-
-    # Compute metadata hash for verification
-    metadata = data.get('metadata', '[]')
-
-    resp2 = http_requests.get(callback_url, timeout=10)
-    resp2.raise_for_status()
-    invoice_data = resp2.json()
-
-    if invoice_data.get('status') == 'ERROR':
-        raise Exception(f'LNURL callback error: {invoice_data.get("reason", "unknown")}')
-
-    invoice = invoice_data.get('pr')
-    if not invoice:
-        raise Exception('No invoice returned from LNURL callback')
+    invoice = resolve_to_invoice(address, otx.amount)
 
     # Verify invoice amount matches what we requested
     from wallets.views_boltcard import _decode_invoice_amount
@@ -90,7 +50,7 @@ def _resolve_ln_address(otx):
             f'Invoice amount mismatch: expected {expected_sats} sats, got {invoice_amount_sats} sats'
         )
 
-    # Step 3: Update outgoing tx with the resolved invoice
+    # Update outgoing tx with the resolved invoice
     Outgoingtransaction.objects.filter(id=otx.id).update(
         destination=invoice,
         destination_type=DestinationType.LN_INVOICE,
