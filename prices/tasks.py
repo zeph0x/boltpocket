@@ -166,3 +166,25 @@ def get_latest_price(currency_id):
     if val:
         return Decimal(val.decode())
     return None
+
+
+def get_historical_price(currency_id, timestamp):
+    """
+    Get the BTC price closest to a given timestamp from PriceSnapshot.
+    Looks for the nearest snapshot within 10 minutes. Returns Decimal or None.
+    """
+    from prices.models import PriceSnapshot
+    from datetime import timedelta
+
+    window = timedelta(minutes=10)
+
+    # Try snapshot just before or at the timestamp
+    snap = (
+        PriceSnapshot.objects
+        .filter(currency=currency_id, timestamp__gte=timestamp - window, timestamp__lte=timestamp + window)
+        .order_by('timestamp')
+        .first()
+    )
+    if snap:
+        return snap.price
+    return None

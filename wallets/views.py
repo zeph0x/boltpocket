@@ -132,10 +132,23 @@ def wallet_dashboard(request):
         confirmed_at=None,
     ).order_by('-created_at')
 
+    # Annotate transactions with fiat amount from historical price
+    from prices.tasks import get_historical_price
+    fiat_currency_map = {'USD': 1, 'EUR': 2, 'CHF': 3}
     # Determine which fiat currency to use for conversions
     fiat_currency = primary if primary in ('USD', 'EUR', 'CHF') else (
         secondary if secondary in ('USD', 'EUR', 'CHF') else 'CHF'
     )
+    fiat_cid = fiat_currency_map.get(fiat_currency, 3)
+    for tx in transactions:
+        try:
+            price = get_historical_price(fiat_cid, tx.created_at)
+            if price:
+                tx.fiat_display = f'{tx.amount * price:.2f} {fiat_currency}'
+            else:
+                tx.fiat_display = None
+        except Exception:
+            tx.fiat_display = None
 
     # Preferred input unit: if primary is fiat, use that; else sats
     preferred_unit = primary if primary in ('USD', 'EUR', 'CHF') else 'sats'
