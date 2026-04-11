@@ -1,0 +1,19 @@
+[Unit]
+Description=BoltPocket Celery Worker + Beat
+After=network.target redis.service postgresql.service
+
+[Service]
+Type=simple
+User=boltpocket
+WorkingDirectory=/home/boltpocket
+ExecStart=/home/boltpocket/venv/bin/celery -A boltpocket worker --beat -l info
+ExecStopPost=/bin/rm -f /home/boltpocket/celerybeat-schedule /home/boltpocket/celerybeat.pid
+Restart=always
+RestartSec=10
+KillMode=mixed
+KillSignal=SIGTERM
+TimeoutStopSec=30
+Environment=DJANGO_SETTINGS_MODULE=boltpocket.settings
+
+[Install]
+WantedBy=multi-user.target

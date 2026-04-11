@@ -1,0 +1,15 @@
+[Unit]
+Description=BoltPocket Django Web Server
+After=network.target postgresql.service redis.service
+
+[Service]
+Type=simple
+User=boltpocket
+WorkingDirectory=/home/boltpocket
+ExecStart=/home/boltpocket/venv/bin/gunicorn boltpocket.wsgi:application --bind 127.0.0.1:8000 --workers 2 --timeout 120
+Restart=always
+RestartSec=5
+Environment=DJANGO_SETTINGS_MODULE=boltpocket.settings
+
+[Install]
+WantedBy=multi-user.target
