@@ -9,3 +9,4 @@ base58>=2.1
 safe-pysha3>=1.0
 psycopg2-binary>=2.9
 websocket-client>=1.7
+gunicorn>=22.0
