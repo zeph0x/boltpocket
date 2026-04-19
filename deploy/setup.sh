@@ -63,13 +63,19 @@ chown -R "$SERVICE_USER:$SERVICE_USER" "$INSTALL_DIR"
 
 # --- Systemd services ---
 echo "→ Installing systemd services..."
+# Remove old combined service if present
+systemctl stop boltpocket-celery 2>/dev/null || true
+systemctl disable boltpocket-celery 2>/dev/null || true
+rm -f /etc/systemd/system/boltpocket-celery.service
+
 cp "$INSTALL_DIR/deploy/boltpocket-web.service" /etc/systemd/system/
-cp "$INSTALL_DIR/deploy/boltpocket-celery.service" /etc/systemd/system/
+cp "$INSTALL_DIR/deploy/boltpocket-worker.service" /etc/systemd/system/
+cp "$INSTALL_DIR/deploy/boltpocket-beat.service" /etc/systemd/system/
 systemctl daemon-reload
-systemctl enable boltpocket-web boltpocket-celery
+systemctl enable boltpocket-web boltpocket-worker boltpocket-beat
 
 echo "→ Starting services..."
-systemctl restart boltpocket-web boltpocket-celery
+systemctl restart boltpocket-beat boltpocket-worker boltpocket-web
 
 sleep 3
 
@@ -77,7 +83,8 @@ sleep 3
 echo ""
 echo "=== Status ==="
 systemctl is-active boltpocket-web && echo "  ✓ Web server running" || echo "  ✗ Web server failed"
-systemctl is-active boltpocket-celery && echo "  ✓ Celery running" || echo "  ✗ Celery failed"
+systemctl is-active boltpocket-worker && echo "  ✓ Celery worker running" || echo "  ✗ Celery worker failed"
+systemctl is-active boltpocket-beat && echo "  ✓ Celery beat running" || echo "  ✗ Celery beat failed"
 
 echo ""
 echo "=== Next Steps ==="
@@ -88,7 +95,8 @@ echo "  4. Create an admin user: sudo -u $SERVICE_USER $INSTALL_DIR/venv/bin/pyt
 echo "  5. Visit http://127.0.0.1:8000/admin/ to configure"
 echo ""
 echo "  Logs:  journalctl -u boltpocket-web -f"
-echo "         journalctl -u boltpocket-celery -f"
+echo "         journalctl -u boltpocket-worker -f"
+echo "         journalctl -u boltpocket-beat -f"
 echo "  Reload after code changes: bash scripts/reload.sh"
 echo ""
 echo "✓ Setup complete"

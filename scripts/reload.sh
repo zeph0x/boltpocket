@@ -10,6 +10,6 @@ source venv/bin/activate
 python3 manage.py migrate --run-syncdb 2>&1 | grep -v "No migrations to apply" || true
 
 echo "→ Restarting services..."
-systemctl restart boltpocket-celery boltpocket-web
+systemctl restart boltpocket-beat boltpocket-worker boltpocket-web
 
 echo "✓ Done"

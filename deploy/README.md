@@ -34,9 +34,14 @@ The setup script will:
 | Service | Description | Port |
 |---------|-------------|------|
 | `boltpocket-web` | Gunicorn web server | 127.0.0.1:8000 |
-| `boltpocket-celery` | Celery worker + beat scheduler | — |
+| `boltpocket-worker` | Celery worker (task execution) | — |
+| `boltpocket-beat` | Celery beat (task scheduler) | — |
 
-Both use `Restart=always` — they auto-restart on crash within 10 seconds.
+Beat and worker run as **separate processes** so systemd can restart each independently.
+If the worker crashes (e.g. Redis reconnection failure), it auto-restarts within 10 seconds
+without affecting the scheduler, and vice versa.
+
+All services use `Restart=always`.
 
 ## Configuration
 
@@ -86,13 +91,18 @@ NFC card tap URLs must be **public + HTTPS** since they're baked into card NFC d
 bash scripts/reload.sh
 
 # Manual service control
-sudo systemctl restart boltpocket-web boltpocket-celery
+sudo systemctl restart boltpocket-beat boltpocket-worker boltpocket-web
 sudo systemctl status boltpocket-web
-sudo systemctl status boltpocket-celery
+sudo systemctl status boltpocket-worker
+sudo systemctl status boltpocket-beat
 
 # Logs
 sudo journalctl -u boltpocket-web -f
-sudo journalctl -u boltpocket-celery -f
+sudo journalctl -u boltpocket-worker -f
+sudo journalctl -u boltpocket-beat -f
+
+# All logs combined
+sudo journalctl -u 'boltpocket-*' -f
 
 # Create admin user
 sudo -u boltpocket /home/boltpocket/venv/bin/python3 manage.py createsuperuser
@@ -100,6 +110,19 @@ sudo -u boltpocket /home/boltpocket/venv/bin/python3 manage.py createsuperuser
 # Django shell
 sudo -u boltpocket /home/boltpocket/venv/bin/python3 manage.py shell
 ```
+
+## Troubleshooting
+
+### Worker dies but beat keeps running (or vice versa)
+This is exactly why they're split — systemd restarts the failed process independently.
+Check logs: `journalctl -u boltpocket-worker --since "1 hour ago"`
+
+### Tasks scheduled but never executed
+Worker is down. Check: `systemctl status boltpocket-worker`
+
+### Redis connection errors
+If Redis restarts, both worker and beat will reconnect automatically (systemd restart).
+Check Redis: `redis-cli ping`
 
 ## File Layout
 
@@ -112,7 +135,12 @@ sudo -u boltpocket /home/boltpocket/venv/bin/python3 manage.py shell
 ├── accounts/            # Core: accounts, transactions, payments
 ├── wallets/             # Wallet UI, bolt card endpoints
 ├── prices/              # BTC price feed (Kraken)
-├── deploy/              # Systemd services, nginx config, setup script
+├── deploy/              # This directory
+│   ├── setup.sh         # One-command deployment
+│   ├── boltpocket-web.service
+│   ├── boltpocket-worker.service
+│   ├── boltpocket-beat.service
+│   └── nginx.example.conf
 ├── scripts/             # reload.sh, card print tools
 ├── firmware/            # M5Stack e-ink display firmware
 ├── venv/                # Python virtualenv
