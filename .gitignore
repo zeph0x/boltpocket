@@ -95,3 +95,4 @@ tmp
 safedially-migration/custodially-old.sql
 celerybeat-schedule
 static/
+node_modules/
