@@ -36,6 +36,7 @@ The setup script will:
 | `boltpocket-web` | Gunicorn web server | 127.0.0.1:8000 |
 | `boltpocket-worker` | Celery worker (task execution) | — |
 | `boltpocket-beat` | Celery beat (task scheduler) | — |
+| `electrum` | Electrum daemon (Lightning + on-chain) | 127.0.0.1:7777 |
 
 Beat and worker run as **separate processes** so systemd can restart each independently.
 If the worker crashes (e.g. Redis reconnection failure), it auto-restarts within 10 seconds
@@ -146,6 +147,33 @@ Check Redis: `redis-cli ping`
 ├── venv/                # Python virtualenv
 └── manage.py
 ```
+
+## Electrum
+
+Electrum runs as a separate service (as root, since it manages wallet keys):
+
+```bash
+# Install Electrum
+cd /tmp && wget https://download.electrum.org/4.8.2/Electrum-4.8.2.tar.gz
+pip3 install --break-system-packages Electrum-4.8.2.tar.gz
+
+# Create wallet (first time only)
+electrum create
+
+# Install and start service
+sudo cp deploy/electrum.service /etc/systemd/system/
+# Edit wallet path in the service file if needed
+sudo systemctl daemon-reload
+sudo systemctl enable electrum
+sudo systemctl start electrum
+
+# Enable JSON-RPC
+electrum setconfig rpcuser your-rpc-user
+electrum setconfig rpcpassword your-rpc-password
+electrum setconfig rpcport 7777
+```
+
+Update `ELECTRUM_RPC_URL` in `local_settings.py` to match.
 
 ## Security Notes
 

@@ -1,0 +1,17 @@
+[Unit]
+Description=Electrum Daemon
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=forking
+ExecStart=/usr/local/bin/electrum daemon -d
+ExecStartPost=/bin/bash -c 'sleep 5 && /usr/local/bin/electrum load_wallet -w /root/.electrum/wallets/default_wallet'
+ExecStop=/usr/local/bin/electrum stop
+Restart=on-failure
+RestartSec=15
+User=root
+Environment=HOME=/root
+
+[Install]
+WantedBy=multi-user.target

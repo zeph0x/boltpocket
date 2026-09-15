@@ -71,6 +71,11 @@ rm -f /etc/systemd/system/boltpocket-celery.service
 cp "$INSTALL_DIR/deploy/boltpocket-web.service" /etc/systemd/system/
 cp "$INSTALL_DIR/deploy/boltpocket-worker.service" /etc/systemd/system/
 cp "$INSTALL_DIR/deploy/boltpocket-beat.service" /etc/systemd/system/
+# Electrum service (only if not already installed)
+if [ ! -f /etc/systemd/system/electrum.service ]; then
+    cp "$INSTALL_DIR/deploy/electrum.service" /etc/systemd/system/
+    systemctl enable electrum 2>/dev/null || true
+fi
 systemctl daemon-reload
 systemctl enable boltpocket-web boltpocket-worker boltpocket-beat
 
