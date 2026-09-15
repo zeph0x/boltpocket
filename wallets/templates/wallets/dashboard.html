@@ -762,14 +762,37 @@
                 reader.onreading = function(event) {
                     nfcCtrl.abort();
                     for (var rec of event.message.records) {
+                        var data = new TextDecoder().decode(rec.data);
+                        console.log('NFC record:', rec.recordType, rec.mediaType, data);
                         if (rec.recordType === 'url' || rec.recordType === 'absolute-url') {
-                            var url = new TextDecoder().decode(rec.data);
                             cancelCardCharge();
-                            executeCardCharge(url);
+                            executeCardCharge(data);
                             return;
                         }
+                        // Some cards use 'text' or 'unknown' record type with a URL payload
+                        if (data && (data.startsWith('http://') || data.startsWith('https://'))) {
+                            cancelCardCharge();
+                            executeCardCharge(data);
+                            return;
+                        }
+                        // NDEF URI record prefix byte (0x04 = https://)
+                        if (rec.recordType === 'url' || rec.data) {
+                            var bytes = new Uint8Array(rec.data);
+                            if (bytes.length > 1 && bytes[0] === 0x04) {
+                                var url = 'https://' + new TextDecoder().decode(bytes.slice(1));
+                                cancelCardCharge();
+                                executeCardCharge(url);
+                                return;
+                            }
+                            if (bytes.length > 1 && bytes[0] === 0x03) {
+                                var url = 'http://' + new TextDecoder().decode(bytes.slice(1));
+                                cancelCardCharge();
+                                executeCardCharge(url);
+                                return;
+                            }
+                        }
                     }
-                    showResult('error', 'Could not read NFC URL from card.', 'charge-result');
+                    showResult('error', 'Could not read NFC URL from card. Check browser console for details.', 'charge-result');
                     cancelCardCharge();
                 };
             }).catch(function() {
@@ -1202,14 +1225,27 @@
             nfcReader.scan({ signal: nfcAbortController.signal }).then(function() {
                 nfcReader.onreading = function(event) {
                     for (var rec of event.message.records) {
+                        var data = new TextDecoder().decode(rec.data);
+                        console.log('NFC record:', rec.recordType, data);
                         if (rec.recordType === 'url' || rec.recordType === 'absolute-url') {
-                            var decoder = new TextDecoder();
-                            var url = decoder.decode(rec.data);
-                            processNfcUrl(url);
+                            processNfcUrl(data);
+                            return;
+                        }
+                        if (data && (data.startsWith('http://') || data.startsWith('https://'))) {
+                            processNfcUrl(data);
+                            return;
+                        }
+                        var bytes = new Uint8Array(rec.data);
+                        if (bytes.length > 1 && bytes[0] === 0x04) {
+                            processNfcUrl('https://' + new TextDecoder().decode(bytes.slice(1)));
+                            return;
+                        }
+                        if (bytes.length > 1 && bytes[0] === 0x03) {
+                            processNfcUrl('http://' + new TextDecoder().decode(bytes.slice(1)));
                             return;
                         }
                     }
-                    showResult('error', '❌ Could not read NFC URL from card.');
+                    showResult('error', '❌ Could not read NFC URL from card. Check console.');
                 };
             }).catch(function(e) {
                 // NFC not available or permission denied — show manual input
@@ -1398,13 +1434,27 @@
                 reader.onreading = function(event) {
                     nfcCtrl.abort();
                     for (var rec of event.message.records) {
+                        var data = new TextDecoder().decode(rec.data);
+                        console.log('NFC record:', rec.recordType, data);
                         if (rec.recordType === 'url' || rec.recordType === 'absolute-url') {
-                            var url = new TextDecoder().decode(rec.data);
-                            confirmRecurringWithUrl(url);
+                            confirmRecurringWithUrl(data);
+                            return;
+                        }
+                        if (data && (data.startsWith('http://') || data.startsWith('https://'))) {
+                            confirmRecurringWithUrl(data);
+                            return;
+                        }
+                        var bytes = new Uint8Array(rec.data);
+                        if (bytes.length > 1 && bytes[0] === 0x04) {
+                            confirmRecurringWithUrl('https://' + new TextDecoder().decode(bytes.slice(1)));
+                            return;
+                        }
+                        if (bytes.length > 1 && bytes[0] === 0x03) {
+                            confirmRecurringWithUrl('http://' + new TextDecoder().decode(bytes.slice(1)));
                             return;
                         }
                     }
-                    showResult('error', 'Could not read NFC URL.', 'rp-result');
+                    showResult('error', 'Could not read NFC URL. Check console.', 'rp-result');
                     resetRpBtn();
                 };
             }).catch(function() {
