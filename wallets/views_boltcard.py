@@ -249,11 +249,12 @@ def lnurl_callback(request, hit_id):
     return JsonResponse({'status': 'OK'})
 
 
-@require_GET
+@csrf_exempt
 def lnurl_auth(request):
     """
     Card provisioning endpoint.
     Called by the BoltCard NFC programmer app to get keys.
+    Accepts both GET and POST (newer app versions send POST with UID in body).
     """
     a = request.GET.get('a', '')
 
@@ -291,7 +292,14 @@ def lnurl_auth(request):
         }, status=500)
 
     # Update UID if provided by programmer app (and card has placeholder)
+    # New app versions send POST with JSON body { "UID": "..." }
     uid = request.GET.get('uid', '').upper().replace(':', '').replace(' ', '')
+    if not uid and request.method == 'POST':
+        try:
+            body = json.loads(request.body)
+            uid = body.get('UID', body.get('uid', '')).upper().replace(':', '').replace(' ', '')
+        except (json.JSONDecodeError, AttributeError):
+            pass
     if uid and len(uid) == 14 and card.uid == '00000000000000':
         BoltCard.objects.filter(id=card.id).update(uid=uid)
         logger.info(f'BoltCard {card.id} UID set to {uid}')
