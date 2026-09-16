@@ -91,7 +91,7 @@ def wallet_dashboard(request):
 
     # Annotate cards with possibly_wiped warning (no taps in 90+ days)
     from wallets.models import BoltCardHit
-    from datetime import timedelta
+    from django.utils import timezone
     now = timezone.now()
     for card in cards:
         if card.uid != '00000000000000' and card.is_enabled:
