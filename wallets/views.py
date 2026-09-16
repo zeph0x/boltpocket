@@ -89,18 +89,6 @@ def wallet_dashboard(request):
     cards = BoltCard.objects.filter(wallet=request.wallet, deactivated_at=None).order_by('-created_at')
     deactivated_cards = BoltCard.objects.filter(wallet=request.wallet).exclude(deactivated_at=None).order_by('-deactivated_at')
 
-    # Annotate cards with possibly_wiped warning (no taps in 90+ days)
-    from wallets.models import BoltCardHit
-    from django.utils import timezone
-    now = timezone.now()
-    for card in cards:
-        if card.uid != '00000000000000' and card.is_enabled:
-            last_hit = BoltCardHit.objects.filter(card=card).order_by('-created_at').first()
-            last_tap = last_hit.created_at if last_hit else card.created_at
-            card.possibly_wiped = (now - last_tap).days >= 90
-        else:
-            card.possibly_wiped = False
-
     # Transaction history
     from accounts.models import Transaction
     from django.db.models import Q
