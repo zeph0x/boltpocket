@@ -173,9 +173,7 @@
                     <small>Card #{{ card.id }} · Taps: {{ card.counter }} · Limit: {% if card.tx_limit %}{{ card.tx_limit }}{% else %}∞{% endif %}/tx, {% if card.daily_limit %}{{ card.daily_limit }}{% else %}∞{% endif %}/day</small>
                 </div>
                 <div style="display:flex;gap:6px;">
-                    {% if card.possibly_wiped %}
-                    <button class="btn" style="background:#e04040;font-size:0.8em;" onclick="reprogramCard({{ card.id }})">Reprogram</button>
-                    {% endif %}
+                    <button class="btn" style="background:{% if card.possibly_wiped %}#e04040{% else %}#555{% endif %};font-size:0.8em;" onclick="reprogramCard({{ card.id }})">Reprogram</button>
                     <a href="{% url 'boltcard-detail' card.id %}" class="btn">Details</a>
                 </div>
             </li>
