@@ -311,7 +311,7 @@ def lnurl_auth(request):
 
     # Build LNURL-withdraw base URL — includes card_secret
     lnurlw_base = request.build_absolute_uri(
-        f'/boltcard/scan/{card.external_id}/{card_secret}'
+        f'/boltcard/scan/{card.external_id}/{card_secret}/'
     )
     lnurlw_base = lnurlw_base.replace('http://', 'lnurlw://').replace('https://', 'lnurlw://')
 
