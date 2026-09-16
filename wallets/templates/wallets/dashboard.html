@@ -166,13 +166,52 @@
                     <span class="status {% if card.is_enabled %}enabled{% else %}disabled{% endif %}">
                         {% if card.is_enabled %}active{% else %}disabled{% endif %}
                     </span>
+                    {% if card.possibly_wiped %}
+                    <span style="color:#e04040; font-size:0.8em; margin-left:6px;">⚠️ possibly wiped</span>
+                    {% endif %}
                     <br>
                     <small>Card #{{ card.id }} · Taps: {{ card.counter }} · Limit: {% if card.tx_limit %}{{ card.tx_limit }}{% else %}∞{% endif %}/tx, {% if card.daily_limit %}{{ card.daily_limit }}{% else %}∞{% endif %}/day</small>
                 </div>
-                <a href="{% url 'boltcard-detail' card.id %}" class="btn">Details</a>
+                <div style="display:flex;gap:6px;">
+                    {% if card.possibly_wiped %}
+                    <button class="btn" style="background:#e04040;font-size:0.8em;" onclick="reprogramCard({{ card.id }})">Reprogram</button>
+                    {% endif %}
+                    <a href="{% url 'boltcard-detail' card.id %}" class="btn">Details</a>
+                </div>
             </li>
             {% endfor %}
         </ul>
+
+        <!-- Reprogram QR modal -->
+        <div id="reprogram-modal" style="display:none; text-align:center; margin:1em 0; padding:1em; background:#2a2a3a; border-radius:12px;">
+            <h3 style="color:#f7931a;">🔄 Reprogram Card</h3>
+            <p style="color:#ccc; font-size:0.9em;">Scan this QR code with the BoltCard programmer app, then tap your NFC card.</p>
+            <canvas id="qr-reprogram" style="margin:1em auto;"></canvas>
+            <br>
+            <code id="reprogram-auth-url" style="font-size:0.7em; word-break:break-all;"></code>
+            <button class="copy-btn" onclick="copyText('reprogram-auth-url')" style="margin-left:6px;">Copy</button>
+            <br><br>
+            <button class="btn" style="background:#555;" onclick="document.getElementById('reprogram-modal').style.display='none'">Close</button>
+            <div class="send-result" id="reprogram-result"></div>
+        </div>
+
+        {% if deactivated_cards %}
+        <details style="margin-top:1em;">
+            <summary style="color:#888; cursor:pointer; font-size:0.9em;">📋 Deactivated cards ({{ deactivated_cards|length }})</summary>
+            <ul class="card-list" style="opacity:0.6;">
+                {% for card in deactivated_cards %}
+                <li class="card-item">
+                    <div>
+                        <span class="name">{{ card.uid }}</span>
+                        <span class="status disabled">deactivated</span>
+                        <br>
+                        <small>Card #{{ card.id }} · Deactivated: {{ card.deactivated_at|date:"M d, Y" }}</small>
+                    </div>
+                </li>
+                {% endfor %}
+            </ul>
+        </details>
+        {% endif %}
 
         {% if incoming_pending %}
         <h2>⏳ Incoming</h2>
@@ -537,6 +576,40 @@
             btn.disabled = false;
             btn.textContent = 'Add Card';
             showResult('error', '❌ Error: ' + err.message, 'setup-result');
+        });
+    }
+
+    function reprogramCard(cardId) {
+        if (!confirm('This will deactivate the old card record and create a new one.\n\nYou will need the BoltCard programmer app to write new keys to the physical card.\n\nContinue?')) {
+            return;
+        }
+
+        fetch('/wallet/boltcard/' + cardId + '/reprogram/', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: '{}',
+        })
+        .then(function(r) { return r.json().then(function(d) { return { ok: r.ok, data: d }; }); })
+        .then(function(res) {
+            if (res.ok && res.data.ok) {
+                var authUrl = res.data.auth_url;
+                document.getElementById('reprogram-auth-url').textContent = authUrl;
+                document.getElementById('reprogram-modal').style.display = 'block';
+                new QRious({
+                    element: document.getElementById('qr-reprogram'),
+                    value: authUrl,
+                    size: 280,
+                    foreground: '#f7931a',
+                    background: '#1a1a2e',
+                    level: 'M',
+                });
+                showResult('success', '✅ Old card deactivated. Scan QR with BoltCard programmer app, then tap card.', 'reprogram-result');
+            } else {
+                alert('Error: ' + (res.data.error || 'Failed'));
+            }
+        })
+        .catch(function(err) {
+            alert('Network error: ' + err.message);
         });
     }
 

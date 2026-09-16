@@ -86,7 +86,20 @@ def wallet_dashboard(request):
     primary_display = format_currency(primary)
     secondary_display = format_currency(secondary)
 
-    cards = BoltCard.objects.filter(wallet=request.wallet).order_by('-created_at')
+    cards = BoltCard.objects.filter(wallet=request.wallet, deactivated_at=None).order_by('-created_at')
+    deactivated_cards = BoltCard.objects.filter(wallet=request.wallet).exclude(deactivated_at=None).order_by('-deactivated_at')
+
+    # Annotate cards with possibly_wiped warning (no taps in 90+ days)
+    from wallets.models import BoltCardHit
+    from datetime import timedelta
+    now = timezone.now()
+    for card in cards:
+        if card.uid != '00000000000000' and card.is_enabled:
+            last_hit = BoltCardHit.objects.filter(card=card).order_by('-created_at').first()
+            last_tap = last_hit.created_at if last_hit else card.created_at
+            card.possibly_wiped = (now - last_tap).days >= 90
+        else:
+            card.possibly_wiped = False
 
     # Transaction history
     from accounts.models import Transaction
@@ -162,6 +175,7 @@ def wallet_dashboard(request):
         'fiat_currency': fiat_currency,
         'preferred_unit': preferred_unit,
         'cards': cards,
+        'deactivated_cards': deactivated_cards,
         'transactions': transactions,
         'incoming_pending': incoming_pending,
         'ln_address': ln_address,
@@ -1046,6 +1060,49 @@ def wallet_add_card(request):
         'card_id': card.id,
         'auth_url': auth_url,
         'message': 'Scan the QR code with the BoltCard programmer app, then tap your NFC card.',
+    })
+
+
+@wallet_required
+def wallet_reprogram_card(request, card_id):
+    """
+    API: reprogram a possibly wiped card.
+    Deactivates the old card record and creates a new one for the same wallet.
+    Returns provisioning QR data for the BoltCard programmer app.
+    """
+    if request.method != 'POST':
+        return JsonResponse({'error': 'POST required'}, status=405)
+
+    from django.utils import timezone
+
+    old_card = get_object_or_404(BoltCard, id=card_id, wallet=request.wallet)
+
+    if old_card.deactivated_at:
+        return JsonResponse({'error': 'Card already deactivated'}, status=400)
+
+    # Deactivate old card
+    old_card.is_enabled = False
+    old_card.deactivated_at = timezone.now()
+    old_card.save(update_fields=['is_enabled', 'deactivated_at'])
+
+    # Create new card record for the same wallet
+    new_card, card_secret, k0, k1, k2 = BoltCard.create_card(
+        wallet=request.wallet,
+        uid='00000000000000',
+        tx_limit=old_card.tx_limit,
+        daily_limit=old_card.daily_limit,
+    )
+
+    from django.conf import settings
+    domain = getattr(settings, 'LNURL_DOMAIN', 'localhost')
+    auth_url = f'https://{domain}/boltcard/auth/?a={new_card.otp}&s={card_secret}'
+
+    return JsonResponse({
+        'ok': True,
+        'old_card_id': old_card.id,
+        'new_card_id': new_card.id,
+        'auth_url': auth_url,
+        'message': 'Old card deactivated. Scan the QR code with the BoltCard programmer app, then tap your NFC card.',
     })
 
 

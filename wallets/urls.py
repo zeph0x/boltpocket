@@ -28,6 +28,7 @@ urlpatterns = [
     # Bolt Card
     path('wallet/boltcard/add/', views.wallet_add_card, name='wallet-add-card'),
     path('wallet/boltcard/<int:card_id>/', views.boltcard_detail, name='boltcard-detail'),
+    path('wallet/boltcard/<int:card_id>/reprogram/', views.wallet_reprogram_card, name='wallet-reprogram-card'),
 
     # Bolt Card LNURL endpoints (public, called by POS)
     path('boltcard/scan/<str:external_id>/<str:card_secret>/', views_boltcard.lnurl_scan, name='boltcard-scan'),

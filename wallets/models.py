@@ -193,6 +193,9 @@ class BoltCard(models.Model):
 
     is_enabled = models.BooleanField(default=True)
 
+    # Soft-deactivation timestamp (card replaced/wiped/expired)
+    deactivated_at = models.DateTimeField(null=True, blank=True, default=None)
+
     # One-time password for card provisioning
     otp = models.CharField(max_length=32, blank=True, default='')
 
