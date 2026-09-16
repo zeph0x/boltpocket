@@ -1051,6 +1051,7 @@ def wallet_add_card(request):
     })
 
 
+@csrf_exempt
 @wallet_required
 def wallet_reprogram_card(request, card_id):
     """
